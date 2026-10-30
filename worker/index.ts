@@ -678,7 +678,13 @@ export default {
     }
   },
 
-  async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(runScheduled(env, event.scheduledTime));
+  async scheduled(event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
+    /*
+     * Awaited rather than handed to waitUntil. The runtime already waits on
+     * the promise this handler returns, and awaiting means a failure surfaces
+     * as a failed cron invocation in Cloudflare's logs instead of being
+     * swallowed as an unhandled rejection on a loop nobody is watching.
+     */
+    await runScheduled(env, event.scheduledTime);
   },
 };

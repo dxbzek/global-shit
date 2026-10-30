@@ -429,5 +429,10 @@ roughly halves the file with no visible difference at globe scale.
 - **Wikidata completeness varies.** The African Union returns 54 of 55 members.
   The app shows what the source holds and links to it rather than patching
   gaps from memory.
+- **Headlines are publish-time snapshots.** Outlets rewrite headlines after
+  publication, live blogs and Q&A pieces especially. The app stores the
+  headline as it stood at ingest, with the publish time and a link out; it does
+  not claim the headline is still the current one. `accuracy-check.mjs` tests
+  attribution, which must hold, and reports headline drift separately.
 - **Cesium is a large bundle** (~1.1 MB gzipped). It is split into its own
   chunk so app changes do not force a re-download.

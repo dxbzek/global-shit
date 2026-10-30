@@ -277,13 +277,32 @@ export async function runScheduled(env: Env, scheduledTime: number): Promise<voi
   const d = new Date(scheduledTime);
   const minute = d.getUTCMinutes() + d.getUTCHours() * 60;
 
+  // Ingestion is the one step that must happen every tick, so it runs first
+  // and its failure is the only one allowed to abort the invocation.
   await ingestTick(env, minute);
   await rollup(env);
 
-  if (minute % 5 === 0) await refreshReference(env, 'prices');
-  if (minute % 30 === 7) await refreshReference(env, 'conflicts');
-  if (minute % 360 === 13) await refreshReference(env, 'leaders');
-  if (minute % 360 === 23) await refreshReference(env, 'relations');
+  /*
+   * Reference refreshes are isolated. Each source already records its own
+   * failure as health rather than throwing, but a KV write can still fail, and
+   * on an unattended loop one bad refresh must not stop the others or mask the
+   * ingestion that already succeeded.
+   */
+  const due: Array<'prices' | 'conflicts' | 'leaders' | 'relations'> = [];
+  if (minute % 5 === 0) due.push('prices');
+  if (minute % 30 === 7) due.push('conflicts');
+  if (minute % 360 === 13) due.push('leaders');
+  if (minute % 360 === 23) due.push('relations');
+
+  for (const which of due) {
+    try {
+      await refreshReference(env, which);
+    } catch (err) {
+      // Logged rather than rethrown: visible in Cloudflare's logs, and the
+      // previous blob stays cached and clearly marked stale in the UI.
+      console.error(`scheduled: ${which} refresh failed:`, err);
+    }
+  }
 }
 
 /**
