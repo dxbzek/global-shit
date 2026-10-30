@@ -96,14 +96,20 @@ so it is never set in production.
 
 ## Deploying to Cloudflare
 
-**1. Create the KV namespace.**
+**1. Log in, and create a KV namespace if you need your own.**
 
 ```bash
-npx wrangler kv namespace create WORLD_PULSE
+npx wrangler login
 ```
 
-Paste the printed `id` into `wrangler.toml`, replacing
-`replace-with-your-kv-namespace-id`.
+`wrangler.toml` already points at a namespace on this repository's Cloudflare
+account. Deploying to a different account needs your own:
+
+```bash
+npx wrangler kv namespace create world-pulse
+```
+
+Paste the printed `id` into `wrangler.toml`.
 
 **2. Add your keys as secrets.** Only `EIA_API_KEY` is needed for the market
 bar; the rest are optional. See [Keys](#keys).
@@ -357,6 +363,10 @@ which silently breaks every DOM call in the front end if they share a config.
 npm run test:ui
 ```
 
+Needs a Chromium build: `npx playwright install chromium`. Where Playwright's
+own build is unavailable, the script falls back to a system Chromium, and
+`PLAYWRIGHT_CHROMIUM_PATH` points it at a specific binary.
+
 Drives the real app in a real browser: clicks five countries, exercises every
 filter and sort, checks the URL carries the state, resizes to a phone, swipes
 the bottom sheet, verifies reduced motion, and fails on console errors or
@@ -371,6 +381,20 @@ the worker's caches or reuse its queries — it asks Wikidata and the outlets
 directly, so a bug in the worker's query cannot hide behind itself.
 
 ---
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every push to `main` and every pull request:
+
+- **Typecheck and build** — both TypeScript projects, then the Vite build. The
+  built `dist/` is handed to the next job rather than rebuilt.
+- **Browser test** — starts `wrangler dev` against that build, fills the caches
+  once (cron does not fire under `wrangler dev`), and runs the browser suite.
+  Screenshots are uploaded whether it passes or fails.
+- **Source health** — runs `verify-sources` on `main` and on demand, never on a
+  pull request, and never blocks. Upstreams are third-party services that
+  rate-limit and change without notice, so this reports rather than gates. Add
+  `EIA_API_KEY` and `UCDP_API_TOKEN` as repository secrets to cover those too.
 
 ## Architecture
 
