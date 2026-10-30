@@ -1,0 +1,31 @@
+{
+  "name": "world-pulse",
+  "version": "1.0.0",
+  "private": true,
+  "description": "World Pulse - live world news globe",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:worker": "wrangler dev",
+    "build": "node scripts/build-countries.mjs && vite build",
+    "deploy": "npm run build && wrangler deploy",
+    "verify-sources": "node scripts/verify-sources.mjs",
+    "typecheck": "tsc --noEmit",
+    "test:ui": "node scripts/ui-test.mjs"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241106.0",
+    "countries-list": "^3.4.1",
+    "i18n-iso-countries": "^7.14.0",
+    "topojson-client": "^3.1.0",
+    "typescript": "^5.6.3",
+    "undici": "^6.29.1",
+    "vite": "^5.4.10",
+    "vite-plugin-static-copy": "^2.1.0",
+    "world-atlas": "^2.0.2",
+    "wrangler": "^3.86.0"
+  },
+  "dependencies": {
+    "cesium": "^1.123.0"
+  }
+}
