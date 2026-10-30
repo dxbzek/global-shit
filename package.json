@@ -14,7 +14,8 @@
     "test:ui": "node scripts/ui-test.mjs",
     "accuracy-check": "node scripts/accuracy-check.mjs",
     "dev:bridge": "node scripts/dev-fetch-bridge.mjs",
-    "dev:all": "echo \"Run in three terminals: npm run dev:bridge | npx wrangler dev | npm run dev\""
+    "dev:all": "echo \"Run in three terminals: npm run dev:bridge | npx wrangler dev | npm run dev\"",
+    "build:preview": "npm run build && node scripts/build-preview.mjs"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241106.0",

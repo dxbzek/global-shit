@@ -1,5 +1,7 @@
 node_modules/
 dist/
+# Static preview built by scripts/build-preview.mjs: build output, not source.
+preview/
 .wrangler/
 .dev.vars
 .env

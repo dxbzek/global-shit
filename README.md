@@ -396,6 +396,26 @@ directly, so a bug in the worker's query cannot hide behind itself.
   rate-limit and change without notice, so this reports rather than gates. Add
   `EIA_API_KEY` and `UCDP_API_TOKEN` as repository secrets to cover those too.
 
+## Static preview
+
+```bash
+npm run build:preview
+```
+
+Captures one moment of the running worker's API output to JSON and ships it
+beside the normal build, with a shim that answers the app's own `/api/` calls
+from those files. The app code is untouched; it does not know it is reading a
+capture. The globe, search, filters, sorting, country panels and accuracy
+breakdowns all work.
+
+It is useful for showing the app to someone without deploying it, or for
+reviewing the interface without a worker running. It is deliberately labelled
+in-page as frozen, with its capture time: a preview that looked live would
+misrepresent when the news is from. Needs a worker running at
+`http://127.0.0.1:8787` with its caches filled.
+
+Output goes to `preview/`, which is git-ignored.
+
 ## Architecture
 
 ```
