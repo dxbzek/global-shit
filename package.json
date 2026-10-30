@@ -10,8 +10,11 @@
     "build": "node scripts/build-countries.mjs && vite build",
     "deploy": "npm run build && wrangler deploy",
     "verify-sources": "node scripts/verify-sources.mjs",
-    "typecheck": "tsc --noEmit",
-    "test:ui": "node scripts/ui-test.mjs"
+    "typecheck": "tsc -p tsconfig.worker.json && tsc -p tsconfig.web.json",
+    "test:ui": "node scripts/ui-test.mjs",
+    "accuracy-check": "node scripts/accuracy-check.mjs",
+    "dev:bridge": "node scripts/dev-fetch-bridge.mjs",
+    "dev:all": "echo \"Run in three terminals: npm run dev:bridge | npx wrangler dev | npm run dev\""
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241106.0",

@@ -27,6 +27,17 @@ const O = (domain: string, name: string, owner: string, country: string | null):
  * Text news feeds. Spread across owners and countries on purpose: two outlets
  * under one owner cannot confirm each other, so a list weighted to one group
  * would rarely produce a confirmed story.
+ *
+ * Every feed here was verified live by scripts/verify-sources.mjs. Four were
+ * removed after testing rather than left in to fail quietly:
+ *   - Reuters (reutersagency.com) redirects to a dead endpoint; Reuters has no
+ *     public RSS feed any more.
+ *   - Associated Press has no public RSS feed; third-party relays for it were
+ *     unreliable.
+ *   - ABC Australia's world feed returns 404.
+ *   - ReliefWeb's RSS returns 406 "Blocked due to bot activity".
+ *   - CBC's world feed timed out on every attempt, direct and relayed.
+ * Adding an outlet means adding one entry here plus a probe in the harness.
  */
 export const NEWS_FEEDS: FeedDef[] = [
   { id: 'bbc-world', url: 'https://feeds.bbci.co.uk/news/world/rss.xml', outlet: O('bbc.co.uk', 'BBC News', 'BBC', 'GB'), sourceType: 'news' },
@@ -36,12 +47,7 @@ export const NEWS_FEEDS: FeedDef[] = [
   { id: 'dw-world', url: 'https://rss.dw.com/rdf/rss-en-world', outlet: O('dw.com', 'Deutsche Welle', 'Deutsche Welle', 'DE'), sourceType: 'news' },
   { id: 'france24', url: 'https://www.france24.com/en/rss', outlet: O('france24.com', 'France 24', 'France Medias Monde', 'FR'), sourceType: 'news' },
   { id: 'un-news', url: 'https://news.un.org/feed/subscribe/en/news/all/rss.xml', outlet: O('news.un.org', 'UN News', 'United Nations', null), sourceType: 'news' },
-  { id: 'cbc-world', url: 'https://www.cbc.ca/webfeed/rss/rss-world', outlet: O('cbc.ca', 'CBC News', 'CBC/Radio-Canada', 'CA'), sourceType: 'news' },
-  { id: 'abc-au-world', url: 'https://www.abc.net.au/news/feed/52278/rss.xml', outlet: O('abc.net.au', 'ABC News (Australia)', 'Australian Broadcasting Corporation', 'AU'), sourceType: 'news' },
   { id: 'scmp-news', url: 'https://www.scmp.com/rss/91/feed', outlet: O('scmp.com', 'South China Morning Post', 'Alibaba Group', 'HK'), sourceType: 'news' },
-  { id: 'reuters-wire', url: 'https://www.reutersagency.com/feed/?best-topics=political-general&post_type=best', outlet: O('reuters.com', 'Reuters', 'Thomson Reuters', 'GB'), sourceType: 'news' },
-  { id: 'ap-topnews', url: 'https://rsshub.app/apnews/topics/apf-topnews', outlet: O('apnews.com', 'Associated Press', 'Associated Press', 'US'), sourceType: 'news' },
-  { id: 'reliefweb-disasters', url: 'https://reliefweb.int/disasters/rss.xml', outlet: O('reliefweb.int', 'ReliefWeb (UN OCHA)', 'United Nations', null), sourceType: 'news', forceCategory: 'disasters' },
 ];
 
 /**

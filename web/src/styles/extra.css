@@ -1,0 +1,302 @@
+/* Components introduced by the panel, rail and story views. */
+
+/* --- rail groups --------------------------------------------------------- */
+
+.rail-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.rail-group-head .clear-all { margin-left: auto; }
+
+.detail {
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--ink-faint);
+}
+
+/* --- country list -------------------------------------------------------- */
+
+.country-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 240px;
+  overflow-y: auto;
+  margin: 0 -6px;
+}
+
+.country-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  font-size: 12px;
+  color: var(--ink-dim);
+  text-align: left;
+  border-radius: var(--r-sm);
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+
+.country-row:hover { color: var(--ink); background: rgba(255, 255, 255, 0.045); }
+
+.country-row.is-active {
+  color: var(--ink);
+  background: rgba(90, 209, 245, 0.13);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.country-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.country-count {
+  margin-left: auto;
+  flex: none;
+  font-size: 10.5px;
+  color: var(--ink-faint);
+}
+
+/* --- panel sections ------------------------------------------------------ */
+
+.section-head,
+.news-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.section-head .detail,
+.news-group-head .detail { margin-left: auto; }
+
+.news-group + .news-group {
+  margin-top: 15px;
+  padding-top: 13px;
+  border-top: 1px solid var(--line);
+}
+
+/* --- evidence ------------------------------------------------------------ */
+
+.evidence { margin-top: 9px; }
+
+.evidence-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 11px;
+  margin-top: 4px;
+}
+
+/* --- conflicts ----------------------------------------------------------- */
+
+.conflict + .conflict {
+  margin-top: 13px;
+  padding-top: 11px;
+  border-top: 1px solid var(--line);
+}
+
+.conflict-name {
+  font-size: 13.5px;
+  margin-bottom: 7px;
+}
+
+.conflict-sides {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 9px;
+  align-items: center;
+  padding: 9px 11px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+
+.conflict-sides .side {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  min-width: 0;
+}
+
+.conflict-sides .versus {
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.conflict-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 13px;
+  margin-top: 7px;
+  font-size: 11.5px;
+  color: var(--ink-dim);
+}
+
+/* --- prices -------------------------------------------------------------- */
+
+.price-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: 9px;
+}
+
+.price-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 11px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+
+.price-cell .price-value {
+  font-size: 21px;
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.market-meta {
+  padding-left: 9px;
+  font-size: 10px;
+  color: var(--ink-faint);
+  border-left: 1px solid var(--line);
+}
+.market-meta[data-stale='true'] { color: var(--tension); }
+
+/* --- score breakdown ----------------------------------------------------- */
+
+.story-detail {
+  margin-top: 10px;
+  padding: 11px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  animation: rise var(--t-base) var(--ease-out) both;
+}
+
+.score-note {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--ink-faint);
+}
+
+.citation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.citation {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 1px 9px;
+  padding: 5px 0;
+  font-size: 11px;
+}
+.citation + .citation { border-top: 1px solid var(--line); }
+
+.citation-outlet {
+  font-size: 12px;
+  color: var(--ink);
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--t-fast) var(--ease);
+}
+.citation-outlet:hover { border-bottom-color: var(--accent); }
+
+.citation-owner {
+  grid-column: 1;
+  color: var(--ink-faint);
+  font-size: 10.5px;
+}
+
+.citation-time,
+.citation-type {
+  grid-column: 2;
+  text-align: right;
+  color: var(--ink-faint);
+  font-size: 10.5px;
+}
+
+/* --- meta line ----------------------------------------------------------- */
+
+.meta-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  margin-top: 11px;
+  padding-top: 8px;
+  font-size: 10.5px;
+  color: var(--ink-faint);
+  border-top: 1px solid var(--line);
+}
+
+.stale-flag {
+  padding: 1px 6px;
+  font-size: 9.5px;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--tension);
+  border: 1px solid currentColor;
+  border-radius: 99px;
+}
+
+/* --- toast dismiss ------------------------------------------------------- */
+
+.toast-x {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-left: 4px;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--ink-faint);
+  border-radius: 50%;
+  transition: color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
+}
+.toast-x:hover { color: var(--ink); background: rgba(255, 255, 255, 0.08); }
+
+/* --- hover card positioning --------------------------------------------- */
+
+#hover-card {
+  top: 0;
+  left: 0;
+  /* Positioned by transform from JS, so it never triggers layout. */
+  will-change: transform;
+}
+
+/* --- mobile sheet adjustments ------------------------------------------- */
+
+@media (max-width: 900px) {
+  /*
+   * The toast dismiss button is a real tap target on touch layouts. This
+   * lives here rather than in app.css because .toast-x's base rule is in this
+   * file, and the later stylesheet wins at equal specificity.
+   */
+  .toast { padding: 11px 14px; }
+  .toast-x { width: 34px; height: 34px; margin-left: 6px; font-size: 18px; }
+
+  .conflict-sides {
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+  .conflict-sides .versus { justify-self: start; }
+
+  .row { flex-direction: column; gap: 2px; }
+  .row .k { width: auto; }
+
+  .citation { grid-template-columns: 1fr; }
+  .citation-time,
+  .citation-type { grid-column: 1; text-align: left; }
+}

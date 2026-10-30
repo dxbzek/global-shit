@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#04060c" />
+    <title>World Pulse — live world news globe</title>
+    <meta
+      name="description"
+      content="A live 3D globe of world news. Click any country for its leader, conflict status, alliances and latest reporting, every item with its source, time and an accuracy score."
+    />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Flags are fetched per country; warming the connection avoids a visible pop-in. -->
+    <link rel="preconnect" href="https://flagcdn.com" crossorigin />
+  </head>
+  <body>
+    <div id="app">
+      <!-- The globe sits behind everything, with a vignette to protect contrast. -->
+      <div id="globe" role="application" aria-label="Interactive world globe. Use the country list or search box for a keyboard-accessible equivalent."></div>
+      <div id="vignette" aria-hidden="true"></div>
+
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark">World Pulse</span>
+          <span class="brand-sub">live world news</span>
+        </div>
+
+        <div id="live" class="live" data-state="stale" role="status">
+          <span class="live-dot" aria-hidden="true"></span>
+          <span id="live-label">Connecting</span>
+        </div>
+
+        <div class="search" role="combobox" aria-expanded="false" aria-haspopup="listbox" aria-owns="search-results">
+          <label class="sr-only" for="search-input">Search for a country</label>
+          <input
+            id="search-input"
+            type="search"
+            placeholder="Search any country  /"
+            autocomplete="off"
+            spellcheck="false"
+            aria-autocomplete="list"
+            aria-controls="search-results"
+          />
+          <div id="search-results" class="search-results" role="listbox" aria-label="Country results"></div>
+        </div>
+
+        <!-- Brent, WTI and natural gas, each with its own source and date. -->
+        <div id="markets" class="markets" aria-label="Oil and gas prices"></div>
+      </header>
+
+      <main>
+        <!--
+          Rail and legend share one bounded column. Positioning them
+          independently let the rail's lower content slide under the ticker,
+          where it was visible but not clickable.
+        -->
+        <div class="left-col">
+          <section id="rail" class="panel rail" aria-label="Filters and country list"></section>
+          <section id="legend" class="panel legend" aria-label="Map legend"></section>
+        </div>
+
+        <!-- The entire onboarding: one line, gone after the first click. -->
+        <div id="hint-bar" class="hint-bar" hidden>
+          <span>Click any country for who runs it, whether it is at war, and what is happening now</span>
+          <kbd>/</kbd>
+          <span>to search</span>
+        </div>
+
+        <div id="hover-card" class="hover-card" hidden aria-hidden="true"></div>
+      </main>
+
+      <div class="ticker">
+        <span class="ticker-label">
+          <span class="dot" data-status="war" aria-hidden="true"></span>
+          Live
+        </span>
+        <div class="ticker-viewport">
+          <div id="ticker-track" class="ticker-track"></div>
+        </div>
+      </div>
+
+      <div id="toasts" class="toasts" aria-live="polite" aria-atomic="false"></div>
+      <div id="announcer" class="sr-only" role="status" aria-live="polite"></div>
+    </div>
+
+    <noscript>
+      <p style="padding: 2rem; color: #e8edf7">
+        World Pulse renders a 3D globe and needs JavaScript. The underlying data is
+        available as JSON at <code>/api/feed</code>, <code>/api/countries</code> and
+        <code>/api/country/&lt;ISO code&gt;</code>.
+      </p>
+    </noscript>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
