@@ -15,12 +15,17 @@ not_found_handling = "single-page-application"
 [triggers]
 crons = ["* * * * *"]
 
-# Cache for every data type. Create with:
-#   npx wrangler kv namespace create WORLD_PULSE
-# then paste the printed id below.
+# Cache for every data type.
+#
+# This id points at the "world-pulse" namespace on the repository owner's
+# Cloudflare account. A namespace id is an account-scoped resource identifier,
+# not a credential: reaching it still requires account authentication.
+#
+# Deploying to a different account means creating your own and replacing it:
+#   npx wrangler kv namespace create world-pulse
 [[kv_namespaces]]
 binding = "WORLD_PULSE"
-id = "replace-with-your-kv-namespace-id"
+id = "26538a216120447c9f959d78bfe0193e"
 
 [observability]
 enabled = true

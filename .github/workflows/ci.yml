@@ -1,0 +1,161 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A second push to the same branch supersedes the first; cancelling the older
+# run keeps the queue short without losing coverage of the newest commit.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Typecheck and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # The worker and the browser bundle are typechecked separately on
+      # purpose: @cloudflare/workers-types redefines DOM globals such as
+      # Element.append, which silently breaks every DOM call in the front end
+      # if the two share a config.
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      # The built bundle is what the browser test exercises, so it is handed to
+      # that job rather than rebuilt.
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
+          retention-days: 1
+
+  ui:
+    name: Browser test
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Download build
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      # playwright is a devDependency, so npm ci already installed the module;
+      # this fetches the matching browser binary and its system libraries.
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      # wrangler dev serves dist/ and the API together, which is the same shape
+      # the deployed worker has. Cron does not fire under wrangler dev, so the
+      # caches are filled once by hand below.
+      - name: Start worker
+        run: |
+          nohup npx wrangler dev --port 8787 --local > /tmp/wrangler.log 2>&1 &
+          disown
+          for i in $(seq 1 60); do
+            if curl -fsS --max-time 3 http://127.0.0.1:8787/api/meta > /dev/null; then
+              echo "worker up after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "worker did not start"
+          cat /tmp/wrangler.log
+          exit 1
+
+      - name: Fill caches
+        run: |
+          curl -fsS -X POST --max-time 30 http://127.0.0.1:8787/api/refresh
+          # Ingestion runs in the background; wait for the first rollup rather
+          # than a fixed sleep, so a slow upstream does not fail the run.
+          for i in $(seq 1 90); do
+            items=$(curl -fsS --max-time 8 http://127.0.0.1:8787/api/health \
+              | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{try{console.log((JSON.parse(d).counts||{}).items||0)}catch{console.log(0)}})")
+            if [ "${items:-0}" -gt 20 ]; then
+              echo "cache filled with $items items after ${i}s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "cache did not fill; upstreams may be unreachable from this runner"
+          curl -fsS http://127.0.0.1:8787/api/health || true
+          exit 1
+
+      - name: Run browser test
+        env:
+          # The script defaults to a local scratch directory; point it
+          # somewhere the upload step can find.
+          UI_TEST_OUT: /tmp/world-pulse-ui
+        run: npm run test:ui
+
+      # Screenshots are the fastest way to see what a failure actually looked
+      # like, so they are kept whether the run passed or failed.
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-screenshots
+          path: /tmp/world-pulse-ui
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Worker log on failure
+        if: failure()
+        run: tail -100 /tmp/wrangler.log || true
+
+  sources:
+    name: Source health
+    # Upstreams are third-party services: they rate-limit, go down and change
+    # without notice, so a failure here must not block a pull request. It runs
+    # on main and on demand, and reports rather than gates.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Verify sources
+        env:
+          # Optional. Without them the harness reports those sources as
+          # unavailable with the reason, which is the point of the job.
+          EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
+          UCDP_API_TOKEN: ${{ secrets.UCDP_API_TOKEN }}
+        run: npm run verify-sources

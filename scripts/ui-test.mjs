@@ -10,7 +10,7 @@
  *   node scripts/ui-test.mjs [baseUrl] [--headed] [--keep]
  */
 
-import { mkdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { argv, env, exit } from 'node:process';
 import { createRequire } from 'node:module';
 
@@ -68,10 +68,47 @@ const shot = async (page, label) => {
   return file;
 };
 
-const browser = await chromium.launch({
+/*
+ * Launch options. SwiftShader gives WebGL a software backend, which a CI
+ * runner and most containers need: without it Cesium cannot create a context
+ * and every globe assertion fails for the wrong reason.
+ */
+const launchOptions = {
   headless: !argv.includes('--headed'),
   args: ['--no-sandbox', '--use-gl=swiftshader', '--enable-unsafe-swiftshader'],
-});
+};
+
+/**
+ * Launches Chromium, falling back to a system build when Playwright's own is
+ * missing.
+ *
+ * Playwright only runs the browser revision matching its own version, so a
+ * container that ships a browser for a different Playwright version (and
+ * cannot download another) fails on the bundled path. CI installs the right
+ * one and never reaches the fallback. Set PLAYWRIGHT_CHROMIUM_PATH to point
+ * at a specific binary.
+ */
+async function launchChromium() {
+  try {
+    return await chromium.launch(launchOptions);
+  } catch (err) {
+    if (!/Executable doesn't exist/i.test(err.message)) throw err;
+
+    const candidates = [env.PLAYWRIGHT_CHROMIUM_PATH, '/opt/pw-browsers/chromium'].filter(Boolean);
+    for (const executablePath of candidates) {
+      if (!existsSync(executablePath)) continue;
+      console.log(`  NOTE  Playwright's bundled browser is missing; using ${executablePath}`);
+      return await chromium.launch({ ...launchOptions, executablePath });
+    }
+
+    throw new Error(
+      `${err.message.split('\n')[0]}\nNo system Chromium found either. ` +
+        'Run `npx playwright install chromium`, or set PLAYWRIGHT_CHROMIUM_PATH.',
+    );
+  }
+}
+
+const browser = await launchChromium();
 
 const context = await browser.newContext({
   viewport: { width: 1440, height: 900 },
