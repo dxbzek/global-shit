@@ -71,10 +71,10 @@ export const BAND_LABELS: Record<AccuracyBand, string> = {
 
 /** Human description of each band, shown in the legend. */
 export const BAND_RULES: Record<AccuracyBand, string> = {
-  verified: 'Four or more independently owned outlets, ownership known, reported recently.',
-  corroborated: 'Two or more independently owned outlets.',
-  reported: 'One outlet, or outlets whose independence could not be established.',
-  unconfirmed: 'Discussion only, or a single source with unknown ownership.',
+  verified: 'Four or more independently owned outlets, scoring 70 or above.',
+  corroborated: 'Two or more independently owned outlets, scoring 50 or above.',
+  reported: 'One outlet, or outlets whose independence could not be established. Freshness alone never raises the band.',
+  unconfirmed: 'Discussion only (Reddit), or too little to attribute.',
 };
 
 export function scoreStory(
@@ -165,7 +165,25 @@ export function scoreStory(
   const redditOnly = newsItems.length === 0;
   if (redditOnly) total = Math.min(total, REDDIT_ONLY_CEILING);
 
-  const band = BANDS.find((b) => total >= b.min)!.band;
+  /*
+   * The band is gated on independent corroboration, not on points alone.
+   *
+   * Without this, a single-source story could reach "Corroborated" purely by
+   * being fresh, specific and from a known-owner outlet, which is exactly the
+   * claim the word must not make. Freshness is not corroboration, so the band
+   * can never promise more independence than actually exists:
+   *
+   *   4+ owners  may reach verified
+   *   2-3 owners may reach corroborated
+   *   0-1 owners cap at reported
+   */
+  const ceiling: AccuracyBand =
+    owners.length >= 4 ? 'verified' : owners.length >= 2 ? 'corroborated' : 'reported';
+  const ceilingRank = BANDS.findIndex((b) => b.band === ceiling);
+
+  const byPoints = BANDS.findIndex((b) => total >= b.min);
+  // BANDS runs strongest-first, so the weaker of the two is the higher index.
+  const band = BANDS[Math.max(byPoints, ceilingRank)]!.band;
 
   const citations = story.items.map((i) => ({
     outlet: i.outlet.name,
@@ -231,6 +249,13 @@ export function scoreCountry(input: {
 
   const weights = { Leader: 30, 'Conflict status': 30, 'Confirmed reporting': 25, Alliances: 15 } as Record<string, number>;
   const total = parts.reduce((sum, p) => sum + (p.ok ? weights[p.label]! : 0), 0);
-  const band = BANDS.find((b) => total >= b.min)!.band;
+
+  // Same gate as scoreStory: a page with no independently corroborated
+  // reporting cannot be called verified, however complete its reference data.
+  const ceiling: AccuracyBand = input.confirmedCount >= 3 ? 'verified' : input.confirmedCount >= 1 ? 'corroborated' : 'reported';
+  const ceilingRank = BANDS.findIndex((b) => b.band === ceiling);
+  const byPoints = BANDS.findIndex((b) => total >= b.min);
+  const band = BANDS[Math.max(byPoints, ceilingRank)]!.band;
+
   return { total, band, parts };
 }

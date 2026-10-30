@@ -4,32 +4,11 @@ import { cleanText, hostOf, parseFeed, parseFeedDate } from '../lib/xml';
 import { categorize } from '../lib/categorize';
 import { matchCountries } from '../lib/match';
 import { hash } from '../lib/dedupe';
-
-const UA = 'WorldPulse/1.0 (+https://github.com/dxbzek/global-shit)';
-
-/** Per-fetch ceiling. Cloudflare caps a request's total wall time, so each
- *  upstream gets a short leash and a failure is recorded rather than retried
- *  indefinitely. */
-const FETCH_TIMEOUT_MS = 12_000;
+import { errorMessage, fetchText, type FetchOptions } from '../lib/http';
 
 export interface Fetched<T> {
   data: T;
   health: SourceHealth;
-}
-
-async function timedFetch(url: string, headers: Record<string, string> = {}): Promise<Response> {
-  const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
-  try {
-    return await fetch(url, {
-      signal: ac.signal,
-      headers: { 'user-agent': UA, ...headers },
-      // Let Cloudflare's own cache absorb repeat hits between cron runs.
-      cf: { cacheTtl: 120, cacheEverything: true },
-    } as RequestInit);
-  } finally {
-    clearTimeout(timer);
-  }
 }
 
 const health = (
@@ -92,16 +71,13 @@ function toNewsItem(
 }
 
 /** Fetches and parses one RSS/Atom feed. */
-export async function fetchFeed(feed: FeedDef): Promise<Fetched<NewsItem[]>> {
+export async function fetchFeed(feed: FeedDef, opts: FetchOptions = {}): Promise<Fetched<NewsItem[]>> {
   const started = Date.now();
   try {
-    const res = await timedFetch(feed.url, {
-      accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml, */*',
+    const xml = await fetchText(feed.url, {
+      ...opts,
+      headers: { accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml, */*' },
     });
-    if (!res.ok) {
-      return { data: [], health: health(feed.id, feed.outlet.name, feed.url, started, false, 0, `HTTP ${res.status}`) };
-    }
-    const xml = await res.text();
     const items = parseFeed(xml)
       .map((e) => toNewsItem(e, feed))
       .filter((i): i is NewsItem => i !== null);
@@ -110,8 +86,7 @@ export async function fetchFeed(feed: FeedDef): Promise<Fetched<NewsItem[]>> {
       health: health(feed.id, feed.outlet.name, feed.url, started, true, items.length, null),
     };
   } catch (err) {
-    const msg = err instanceof Error ? (err.name === 'AbortError' ? 'timed out' : err.message) : String(err);
-    return { data: [], health: health(feed.id, feed.outlet.name, feed.url, started, false, 0, msg) };
+    return { data: [], health: health(feed.id, feed.outlet.name, feed.url, started, false, 0, errorMessage(err)) };
   }
 }
 
@@ -124,16 +99,12 @@ export async function fetchFeed(feed: FeedDef): Promise<Fetched<NewsItem[]>> {
  */
 export const SUBREDDITS = ['worldnews', 'geopolitics', 'UpliftingNews'] as const;
 
-export async function fetchSubreddit(sub: string): Promise<Fetched<NewsItem[]>> {
+export async function fetchSubreddit(sub: string, opts: FetchOptions = {}): Promise<Fetched<NewsItem[]>> {
   const started = Date.now();
   const url = `https://www.reddit.com/r/${sub}/new/.rss?limit=50`;
   const id = `reddit-${sub.toLowerCase()}`;
   try {
-    const res = await timedFetch(url);
-    if (!res.ok) {
-      return { data: [], health: health(id, `r/${sub}`, url, started, false, 0, `HTTP ${res.status}`) };
-    }
-    const entries = parseFeed(await res.text());
+    const entries = parseFeed(await fetchText(url, opts));
     const items: NewsItem[] = [];
     for (const e of entries) {
       if (!e.publishedAt) continue;
@@ -155,8 +126,7 @@ export async function fetchSubreddit(sub: string): Promise<Fetched<NewsItem[]>> 
     }
     return { data: items, health: health(id, `r/${sub}`, url, started, true, items.length, null) };
   } catch (err) {
-    const msg = err instanceof Error ? (err.name === 'AbortError' ? 'timed out' : err.message) : String(err);
-    return { data: [], health: health(id, `r/${sub}`, url, started, false, 0, msg) };
+    return { data: [], health: health(id, `r/${sub}`, url, started, false, 0, errorMessage(err)) };
   }
 }
 
@@ -169,7 +139,11 @@ export async function fetchSubreddit(sub: string): Promise<Fetched<NewsItem[]>> 
  * is strictly best-effort: a failure degrades coverage and is reported in
  * /api/health, but never breaks a refresh.
  */
-export async function fetchGdelt(query: string, maxRecords = 75): Promise<Fetched<NewsItem[]>> {
+export async function fetchGdelt(
+  query: string,
+  maxRecords = 75,
+  opts: FetchOptions = {},
+): Promise<Fetched<NewsItem[]>> {
   const started = Date.now();
   const url =
     'https://api.gdeltproject.org/api/v2/doc/doc?' +
@@ -182,11 +156,7 @@ export async function fetchGdelt(query: string, maxRecords = 75): Promise<Fetche
       timespan: '24h',
     });
   try {
-    const res = await timedFetch(url);
-    const text = await res.text();
-    if (!res.ok) {
-      return { data: [], health: health('gdelt-doc', 'GDELT DOC 2.0', url, started, false, 0, `HTTP ${res.status}`) };
-    }
+    const text = await fetchText(url, opts);
     // GDELT answers malformed or throttled queries with a bare message.
     if (!text.trimStart().startsWith('{')) {
       return {
@@ -225,8 +195,7 @@ export async function fetchGdelt(query: string, maxRecords = 75): Promise<Fetche
     }
     return { data: items, health: health('gdelt-doc', 'GDELT DOC 2.0', url, started, true, items.length, null) };
   } catch (err) {
-    const msg = err instanceof Error ? (err.name === 'AbortError' ? 'timed out' : err.message) : String(err);
-    return { data: [], health: health('gdelt-doc', 'GDELT DOC 2.0', url, started, false, 0, msg) };
+    return { data: [], health: health('gdelt-doc', 'GDELT DOC 2.0', url, started, false, 0, errorMessage(err)) };
   }
 }
 

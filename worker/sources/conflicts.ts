@@ -1,6 +1,7 @@
 import type { ConflictParty, ConflictRecord, Provenance, SourceHealth } from '../types';
 import type { Fetched } from './fetchers';
 import { COUNTRY_LIST, findCountry } from '../lib/match';
+import { errorMessage, fetchJson, type FetchOptions } from '../lib/http';
 
 /**
  * Conflict datasets.
@@ -64,6 +65,7 @@ function toParty(name: string): ConflictParty {
 
 export async function fetchConflicts(
   token: string | undefined,
+  opts: FetchOptions = {},
 ): Promise<Fetched<{ byCountry: ConflictRecord[]; coversWorld: boolean; provenance: Provenance | null }>> {
   const started = Date.now();
   const base: SourceHealth = {
@@ -94,20 +96,13 @@ export async function fetchConflicts(
   let lastError = 'no UCDP version responded';
   for (const version of UCDP_VERSIONS) {
     const url = `${UCDP_BASE}/gedevents/${version}?pagesize=1000`;
-    const ac = new AbortController();
-    const timer = setTimeout(() => ac.abort(), 20_000);
     try {
-      const res = await fetch(url, {
-        signal: ac.signal,
-        headers: { 'user-agent': 'WorldPulse/1.0', 'x-ucdp-access-token': token },
-        cf: { cacheTtl: 3600, cacheEverything: true },
-      } as RequestInit);
-      const text = await res.text();
-      if (!res.ok) {
-        lastError = `HTTP ${res.status} on ${version}: ${text.slice(0, 120)}`;
-        continue;
-      }
-      const json = JSON.parse(text) as { Result?: GedRow[]; TotalCount?: number };
+      const json = await fetchJson<{ Result?: GedRow[]; TotalCount?: number }>(url, {
+        ...opts,
+        timeoutMs: 20_000,
+        cacheTtl: 3600,
+        headers: { 'x-ucdp-access-token': token },
+      });
       const rows = json.Result ?? [];
       if (!rows.length) {
         lastError = `version ${version} returned no rows`;
@@ -200,9 +195,7 @@ export async function fetchConflicts(
         },
       };
     } catch (err) {
-      lastError = err instanceof Error ? (err.name === 'AbortError' ? 'timed out' : err.message) : String(err);
-    } finally {
-      clearTimeout(timer);
+      lastError = `${version}: ${errorMessage(err)}`;
     }
   }
 

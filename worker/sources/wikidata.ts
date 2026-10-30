@@ -1,5 +1,6 @@
 import type { Leader, Relation, SourceHealth } from '../types';
 import type { Fetched } from './fetchers';
+import { errorMessage, fetchJson, type FetchOptions } from '../lib/http';
 
 /**
  * Wikidata SPARQL. The queries below are the ones verified by
@@ -8,37 +9,33 @@ import type { Fetched } from './fetchers';
  */
 
 const ENDPOINT = 'https://query.wikidata.org/sparql';
-const UA = 'WorldPulse/1.0 (+https://github.com/dxbzek/global-shit)';
 
-/** Wikidata rejects requests without a descriptive User-Agent. */
-async function sparql(query: string, timeoutMs = 25_000): Promise<Array<Record<string, { value: string }>>> {
-  const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), timeoutMs);
-  try {
-    const res = await fetch(`${ENDPOINT}?${new URLSearchParams({ query, format: 'json' })}`, {
-      signal: ac.signal,
-      headers: { 'user-agent': UA, accept: 'application/sparql-results+json' },
-      cf: { cacheTtl: 1800, cacheEverything: true },
-    } as RequestInit);
-    const text = await res.text();
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 120)}`);
-    const json = JSON.parse(text) as { results?: { bindings?: Array<Record<string, { value: string }>> } };
-    const rows = json.results?.bindings;
-    if (!Array.isArray(rows)) throw new Error('no results.bindings in response');
-    return rows;
-  } finally {
-    clearTimeout(timer);
-  }
+type Bindings = Array<Record<string, { value: string }>>;
+
+/** Wikidata rejects requests that do not carry a descriptive User-Agent. */
+async function sparql(query: string, opts: FetchOptions, timeoutMs = 25_000): Promise<Bindings> {
+  const json = await fetchJson<{ results?: { bindings?: Bindings } }>(
+    `${ENDPOINT}?${new URLSearchParams({ query, format: 'json' })}`,
+    {
+      ...opts,
+      timeoutMs,
+      cacheTtl: 1800,
+      headers: { accept: 'application/sparql-results+json' },
+    },
+  );
+  const rows = json.results?.bindings;
+  if (!Array.isArray(rows)) throw new Error('no results.bindings in response');
+  return rows;
 }
 
-/** Wikidata occasionally answers 502; one retry clears it in practice. */
-async function sparqlWithRetry(query: string, timeoutMs?: number) {
+/** Wikidata intermittently answers 502; one retry clears it in practice. */
+async function sparqlWithRetry(query: string, opts: FetchOptions, timeoutMs?: number): Promise<Bindings> {
   try {
-    return await sparql(query, timeoutMs);
+    return await sparql(query, opts, timeoutMs);
   } catch (first) {
     await new Promise((r) => setTimeout(r, 1200));
     try {
-      return await sparql(query, timeoutMs);
+      return await sparql(query, opts, timeoutMs);
     } catch {
       throw first;
     }
@@ -80,7 +77,7 @@ const mkHealth = (
  * Statements carrying an end date (P582) are excluded, so a former holder
  * never appears as current.
  */
-export async function fetchLeaders(): Promise<Fetched<Leader[]>> {
+export async function fetchLeaders(opts: FetchOptions = {}): Promise<Fetched<Leader[]>> {
   const started = Date.now();
   const leaders: Leader[] = [];
   try {
@@ -96,7 +93,7 @@ export async function fetchLeaders(): Promise<Fetched<Leader[]>> {
           OPTIONAL { ?st pq:P580 ?start }
           SERVICE wikibase:label { bd:serviceParam wikibase:language "en" }
         }
-      `);
+      `, opts);
       for (const r of rows) {
         const iso2 = r.iso?.value;
         const name = r.personLabel?.value;
@@ -127,7 +124,7 @@ export async function fetchLeaders(): Promise<Fetched<Leader[]>> {
   } catch (err) {
     return {
       data: [],
-      health: mkHealth('wikidata-leaders', 'Wikidata (leaders)', started, false, 0, (err as Error).message),
+      health: mkHealth('wikidata-leaders', 'Wikidata (leaders)', started, false, 0, errorMessage(err)),
     };
   }
 }
@@ -164,7 +161,7 @@ const ORGS: Array<{ qid: string; abbreviation: string | null }> = [
  * Excluding statements with an end date is what correctly removes the United
  * Kingdom from the EU.
  */
-export async function fetchRelations(): Promise<Fetched<Relation[]>> {
+export async function fetchRelations(opts: FetchOptions = {}): Promise<Fetched<Relation[]>> {
   const started = Date.now();
   const byCountry = new Map<string, Relation>();
   const ensure = (iso2: string): Relation => {
@@ -196,7 +193,7 @@ export async function fetchRelations(): Promise<Fetched<Relation[]>> {
         { ?m wdt:P297 ?iso } UNION { ?m wdt:P17 ?par . ?par wdt:P297 ?iso }
         SERVICE wikibase:label { bd:serviceParam wikibase:language "en" }
       }
-    `, 40_000);
+    `, opts, 40_000);
 
     const abbrevByQid = new Map(ORGS.map((o) => [o.qid, o.abbreviation]));
     for (const r of orgRows) {
@@ -221,7 +218,7 @@ export async function fetchRelations(): Promise<Fetched<Relation[]>> {
         ?country wdt:P297 ?iso ; wdt:P530 ?other .
         ?other wdt:P297 ?otherIso .
       }
-    `, 40_000);
+    `, opts, 40_000);
 
     const DEFENCE_BODIES = new Set(['Q7184', 'Q842490']);
     for (const r of relRows) {
@@ -259,7 +256,7 @@ export async function fetchRelations(): Promise<Fetched<Relation[]>> {
   } catch (err) {
     return {
       data: [],
-      health: mkHealth('wikidata-relations', 'Wikidata (alliances)', started, false, 0, (err as Error).message),
+      health: mkHealth('wikidata-relations', 'Wikidata (alliances)', started, false, 0, errorMessage(err)),
     };
   }
 }

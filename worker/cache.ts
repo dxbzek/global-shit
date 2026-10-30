@@ -22,6 +22,13 @@ export interface Env {
   GOOGLE_MAPS_API_KEY?: string;
   /** Optional. Enables Cesium Ion imagery and terrain. */
   CESIUM_ION_TOKEN?: string;
+  /**
+   * Local development only. `workerd` resolves DNS itself and ignores HTTP
+   * proxy variables, so in a sandboxed container every upstream fetch fails.
+   * Setting this in .dev.vars routes outbound requests through
+   * scripts/dev-fetch-bridge.mjs. It is never set in production.
+   */
+  FETCH_BRIDGE?: string;
   ASSETS: Fetcher;
 }
 

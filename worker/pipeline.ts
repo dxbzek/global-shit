@@ -15,6 +15,7 @@ import { fetchLeaders, fetchRelations } from './sources/wikidata';
 import { fetchPrices } from './sources/markets';
 import { fetchConflicts } from './sources/conflicts';
 import { clusterStories } from './lib/dedupe';
+import type { FetchOptions } from './lib/http';
 import { deriveStatuses, deriveTension, type StatusResult } from './lib/status';
 import { COUNTRY_LIST } from './lib/match';
 
@@ -41,10 +42,10 @@ const RETAIN_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_ITEMS = 4000;
 
 /**
- * Feeds polled on every tick. These are the fastest-moving wires, and they
- * tolerate a once-a-minute poll.
+ * Feeds polled on every tick. These are the fastest-moving of the verified
+ * feeds and they tolerate a once-a-minute poll; the rest rotate by shard.
  */
-const HOT_FEED_IDS = new Set(['bbc-world', 'aljazeera-all', 'reuters-wire', 'ap-topnews']);
+const HOT_FEED_IDS = new Set(['bbc-world', 'aljazeera-all', 'guardian-world']);
 
 /** GDELT queries, rotated one per tick so the API is hit at most once a minute. */
 const GDELT_QUERIES = [
@@ -68,8 +69,12 @@ export interface IngestResult {
  * clustering always sees every outlet's version of a story. Shards only
  * decide *what gets fetched* on a given tick.
  */
+/** Outbound options shared by every source on this invocation. */
+const httpOpts = (env: Env): FetchOptions => ({ bridge: env.FETCH_BRIDGE });
+
 export async function ingestTick(env: Env, minute: number): Promise<IngestResult> {
   const shard = minute % SHARD_COUNT;
+  const opts = httpOpts(env);
   const health: SourceHealth[] = [];
   const fetched: NewsItem[] = [];
 
@@ -88,12 +93,12 @@ export async function ingestTick(env: Env, minute: number): Promise<IngestResult
   const gdeltQuery = GDELT_QUERIES[minute % GDELT_QUERIES.length]!;
 
   const jobs: Array<Promise<{ data: NewsItem[]; health: SourceHealth }>> = [
-    ...hot.map((f) => fetchFeed(f)),
-    ...slice.map((f) => fetchFeed(f)),
-    fetchSubreddit(sub),
-    fetchGdelt(gdeltQuery),
+    ...hot.map((f) => fetchFeed(f, opts)),
+    ...slice.map((f) => fetchFeed(f, opts)),
+    fetchSubreddit(sub, opts),
+    fetchGdelt(gdeltQuery, 75, opts),
   ];
-  if (tvFeed) jobs.push(fetchFeed(tvFeed));
+  if (tvFeed) jobs.push(fetchFeed(tvFeed, opts));
 
   const settled = await Promise.allSettled(jobs);
   for (const result of settled) {
@@ -228,9 +233,10 @@ export async function rollup(env: Env): Promise<Cached<Rollup>> {
 
 /** Refreshes the slow-moving reference data. Called on a longer cadence. */
 export async function refreshReference(env: Env, which: 'leaders' | 'relations' | 'conflicts' | 'prices'): Promise<SourceHealth[]> {
+  const opts = httpOpts(env);
   switch (which) {
     case 'leaders': {
-      const { data, health } = await fetchLeaders();
+      const { data, health } = await fetchLeaders(opts);
       // Never overwrite good data with an empty result from a failed fetch.
       if (data.length || !(await readCached<Leader[]>(env, KEYS.leaders))) {
         await writeCached(env, KEYS.leaders, data, TTL.leaders, [health]);
@@ -238,19 +244,19 @@ export async function refreshReference(env: Env, which: 'leaders' | 'relations' 
       return [health];
     }
     case 'relations': {
-      const { data, health } = await fetchRelations();
+      const { data, health } = await fetchRelations(opts);
       if (data.length || !(await readCached<Relation[]>(env, KEYS.relations))) {
         await writeCached(env, KEYS.relations, data, TTL.relations, [health]);
       }
       return [health];
     }
     case 'conflicts': {
-      const { data, health } = await fetchConflicts(env.UCDP_API_TOKEN);
+      const { data, health } = await fetchConflicts(env.UCDP_API_TOKEN, opts);
       await writeCached(env, KEYS.conflicts, data, TTL.conflicts, [health]);
       return [health];
     }
     case 'prices': {
-      const { data, health } = await fetchPrices(env.EIA_API_KEY);
+      const { data, health } = await fetchPrices(env.EIA_API_KEY, opts);
       if (data.length || !(await readCached<PriceQuote[]>(env, KEYS.prices))) {
         await writeCached(env, KEYS.prices, data, TTL.prices, [health]);
       }

@@ -1,5 +1,6 @@
 import type { PriceQuote, SourceHealth } from '../types';
 import type { Fetched } from './fetchers';
+import { errorMessage, fetchJson, type FetchOptions } from '../lib/http';
 
 /**
  * Oil and gas prices from the EIA's open data API.
@@ -43,7 +44,11 @@ interface EiaRow {
  * change against the previous published value can be computed from the source
  * rather than estimated.
  */
-async function fetchSeries(def: SeriesDef, apiKey: string): Promise<{ quote: PriceQuote | null; error: string | null; url: string }> {
+async function fetchSeries(
+  def: SeriesDef,
+  apiKey: string,
+  opts: FetchOptions,
+): Promise<{ quote: PriceQuote | null; error: string | null; url: string }> {
   const url = `${def.base}?${new URLSearchParams({
     api_key: apiKey,
     frequency: 'daily',
@@ -54,18 +59,8 @@ async function fetchSeries(def: SeriesDef, apiKey: string): Promise<{ quote: Pri
     length: '2',
   })}`;
 
-  const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), 12_000);
   try {
-    const res = await fetch(url, {
-      signal: ac.signal,
-      headers: { 'user-agent': 'WorldPulse/1.0' },
-      cf: { cacheTtl: 600, cacheEverything: true },
-    } as RequestInit);
-    const text = await res.text();
-    if (!res.ok) return { quote: null, error: `HTTP ${res.status}: ${text.slice(0, 120)}`, url };
-
-    const json = JSON.parse(text) as { response?: { data?: EiaRow[] } };
+    const json = await fetchJson<{ response?: { data?: EiaRow[] } }>(url, { ...opts, cacheTtl: 600 });
     const rows = json.response?.data ?? [];
     const latest = rows[0];
     if (!latest?.period || latest.value == null) {
@@ -108,14 +103,14 @@ async function fetchSeries(def: SeriesDef, apiKey: string): Promise<{ quote: Pri
       url,
     };
   } catch (err) {
-    const msg = err instanceof Error ? (err.name === 'AbortError' ? 'timed out' : err.message) : String(err);
-    return { quote: null, error: msg, url };
-  } finally {
-    clearTimeout(timer);
+    return { quote: null, error: errorMessage(err), url };
   }
 }
 
-export async function fetchPrices(apiKey: string | undefined): Promise<Fetched<PriceQuote[]>> {
+export async function fetchPrices(
+  apiKey: string | undefined,
+  opts: FetchOptions = {},
+): Promise<Fetched<PriceQuote[]>> {
   const started = Date.now();
   const base: SourceHealth = {
     id: 'eia-prices',
@@ -139,7 +134,7 @@ export async function fetchPrices(apiKey: string | undefined): Promise<Fetched<P
     };
   }
 
-  const settled = await Promise.all(SERIES.map((s) => fetchSeries(s, apiKey)));
+  const settled = await Promise.all(SERIES.map((s) => fetchSeries(s, apiKey, opts)));
   const quotes = settled.map((s) => s.quote).filter((q): q is PriceQuote => q !== null);
   const errors = settled
     .map((s, i) => (s.error ? `${SERIES[i]!.series}: ${s.error}` : null))

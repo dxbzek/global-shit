@@ -10,7 +10,7 @@
     "build": "node scripts/build-countries.mjs && vite build",
     "deploy": "npm run build && wrangler deploy",
     "verify-sources": "node scripts/verify-sources.mjs",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc -p tsconfig.worker.json && tsc -p tsconfig.web.json",
     "test:ui": "node scripts/ui-test.mjs"
   },
   "devDependencies": {
