@@ -279,6 +279,14 @@
 /* --- mobile sheet adjustments ------------------------------------------- */
 
 @media (max-width: 900px) {
+  /*
+   * The toast dismiss button is a real tap target on touch layouts. This
+   * lives here rather than in app.css because .toast-x's base rule is in this
+   * file, and the later stylesheet wins at equal specificity.
+   */
+  .toast { padding: 11px 14px; }
+  .toast-x { width: 34px; height: 34px; margin-left: 6px; font-size: 18px; }
+
   .conflict-sides {
     grid-template-columns: 1fr;
     gap: 7px;

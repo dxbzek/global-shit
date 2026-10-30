@@ -551,10 +551,23 @@ function closePanel(): void {
   searchInput.focus({ preventScroll: true });
 }
 
-async function selectCountry(iso2: string, opts: { push?: boolean; fly?: boolean } = {}): Promise<void> {
+/**
+ * Opens a country.
+ *
+ * `quiet` is used by the live refresh: it keeps the current panel on screen
+ * while the new data loads and restores the reader's scroll position
+ * afterwards. Without it, every minute's refresh replaced the panel with a
+ * skeleton, throwing away the scroll offset and any expanded score breakdown
+ * while the reader was mid-sentence.
+ */
+async function selectCountry(
+  iso2: string,
+  opts: { push?: boolean; fly?: boolean; quiet?: boolean } = {},
+): Promise<void> {
   const token = ++panelToken;
   const row = countryByIso.get(iso2);
   const name = row?.name ?? iso2;
+  const quiet = opts.quiet ?? false;
 
   store.set({ country: iso2 }, opts.push ?? false);
   globe?.select(iso2);
@@ -563,12 +576,22 @@ async function selectCountry(iso2: string, opts: { push?: boolean; fly?: boolean
 
   if (opts.fly !== false && row) globe?.flyTo(row.bbox, row.centroid);
 
-  // Skeleton first, so the click feels instant even on a slow network.
-  const skeletonPanel = panelSkeleton(name, iso2, { onClose: closePanel, onOpenCountry: (c) => selectCountry(c, { push: true }) });
-  panelEl?.remove();
-  panelEl = skeletonPanel;
-  root.append(skeletonPanel);
-  installSheetDrag(skeletonPanel);
+  // Remember where the reader was, so a quiet refresh puts them back.
+  const previousScroll = quiet
+    ? (panelEl?.querySelector('.panel-body')?.scrollTop ?? 0)
+    : 0;
+
+  if (!quiet) {
+    // Skeleton first, so the click feels instant even on a slow network.
+    const skeletonPanel = panelSkeleton(name, iso2, {
+      onClose: closePanel,
+      onOpenCountry: (c) => selectCountry(c, { push: true }),
+    });
+    panelEl?.remove();
+    panelEl = skeletonPanel;
+    root.append(skeletonPanel);
+    installSheetDrag(skeletonPanel);
+  }
 
   try {
     const detail = await api.country(iso2, toApiQuery(store.get()));
@@ -578,11 +601,21 @@ async function selectCountry(iso2: string, opts: { push?: boolean; fly?: boolean
       onClose: closePanel,
       onOpenCountry: (c) => selectCountry(c, { push: true }),
     });
+    if (quiet) {
+      // No entrance animation on a background refresh; the panel is already
+      // on screen and should not appear to fly in again.
+      rendered.style.animation = 'none';
+    }
     panelEl?.remove();
     panelEl = rendered;
     root.append(rendered);
     installSheetDrag(rendered);
-    rendered.focus({ preventScroll: true });
+    if (quiet && previousScroll) {
+      const body = rendered.querySelector('.panel-body');
+      if (body) body.scrollTop = previousScroll;
+    } else {
+      rendered.focus({ preventScroll: true });
+    }
 
     // Alliance and adversary lines draw themselves onto the globe.
     if (detail.lines.length) {
@@ -598,8 +631,12 @@ async function selectCountry(iso2: string, opts: { push?: boolean; fly?: boolean
       ? 'No data for that country.'
       : `Could not load ${name}: ${(err as Error).message}`;
     toast(message, 'error', `country-${iso2}`);
-    panelEl?.remove();
-    panelEl = null;
+    // A failed background refresh must not destroy a panel the reader is
+    // already reading; only a failed initial open clears it.
+    if (!quiet) {
+      panelEl?.remove();
+      panelEl = null;
+    }
   }
 }
 
@@ -865,6 +902,13 @@ async function boot(): Promise<void> {
       else if (panelEl) closePanel();
     },
     onHover: showHover,
+    onImageryError: (message) => {
+      toast(
+        `Satellite imagery is unavailable (${message}). Country borders and all data still work.`,
+        'warn',
+        'imagery-down',
+      );
+    },
   });
 
   await refreshCountries(state);
@@ -884,7 +928,7 @@ async function boot(): Promise<void> {
       void refreshCountries(current);
       // The open panel refreshes too, so a country's news stays current
       // without the reader reopening it.
-      if (current.country) void selectCountry(current.country, { push: false, fly: false });
+      if (current.country) void selectCountry(current.country, { push: false, fly: false, quiet: true });
     },
     onState: (s) => {
       if (s === 'live') setLive('live');
@@ -914,7 +958,7 @@ async function boot(): Promise<void> {
 
     if (filtersChanged) {
       void refreshFeed(next);
-      if (next.country) void selectCountry(next.country, { push: false, fly: false });
+      if (next.country) void selectCountry(next.country, { push: false, fly: false, quiet: true });
     }
 
     // Back/forward that clears the country should close the panel.

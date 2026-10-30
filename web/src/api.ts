@@ -112,7 +112,10 @@ export interface CountryDetail {
   }>;
   relations: {
     organizations: Array<{ name: string; wikidataId: string; abbreviation: string | null }>;
-    allies: Array<{ iso2: string; name: string; basis: string }>;
+    /** Countries sharing this country's most specific multilateral body. */
+    sharedWith: Array<{ iso2: string; name: string; centroid: [number, number]; basis: string; kind: 'pact' }>;
+    /** The body those shared memberships were computed from. */
+    anchorOrganization: { name: string; wikidataId: string; abbreviation: string | null } | null;
     source: { source: string; url: string | null; retrievedAt: string };
   } | null;
   lines: Array<{

@@ -56,8 +56,15 @@
       </header>
 
       <main>
-        <section id="rail" class="panel rail" aria-label="Filters and country list"></section>
-        <section id="legend" class="panel legend" aria-label="Map legend"></section>
+        <!--
+          Rail and legend share one bounded column. Positioning them
+          independently let the rail's lower content slide under the ticker,
+          where it was visible but not clickable.
+        -->
+        <div class="left-col">
+          <section id="rail" class="panel rail" aria-label="Filters and country list"></section>
+          <section id="legend" class="panel legend" aria-label="Map legend"></section>
+        </div>
 
         <!-- The entire onboarding: one line, gone after the first click. -->
         <div id="hint-bar" class="hint-bar" hidden>

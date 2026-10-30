@@ -283,19 +283,41 @@ async function handleCountry(env: Env, url: URL, iso2: string): Promise<Response
     hasRelations: Boolean(relation && (relation.organizations.length || relation.allies.length)),
   });
 
-  // Alliance and adversary lines the globe draws, resolved to coordinates here
-  // so the client does no geography of its own.
-  const lineTargets = (relation?.allies ?? [])
-    .filter((a) => COUNTRIES[a.iso2])
-    .slice(0, 24)
-    .map((a) => ({
-      iso2: a.iso2,
-      name: COUNTRIES[a.iso2]!.name,
-      centroid: COUNTRIES[a.iso2]!.centroid,
-      basis: a.basis,
-      kind: /member/i.test(a.basis) ? ('pact' as const) : ('relation' as const),
-    }));
+  /*
+   * Shared-membership partners.
+   *
+   * The app does not assert that two countries are allies; nothing in the
+   * sources supports that claim. What it can show, and cite, is that they
+   * belong to the same body. The most specific shared body is used, because
+   * sharing a 20-member organisation is informative where sharing the UN is
+   * not, and the body is named in the UI next to every line it produces.
+   */
+  const myOrgs = relation?.organizations ?? [];
+  // organizations arrive sorted smallest-membership first.
+  const anchorOrg = myOrgs[0] ?? null;
+  const sharedPartners = anchorOrg
+    ? (relationsC?.data ?? [])
+        .filter(
+          (r) =>
+            r.countryIso2 !== country.iso2 &&
+            COUNTRIES[r.countryIso2] &&
+            r.organizations.some((o) => o.wikidataId === anchorOrg.wikidataId),
+        )
+        .slice(0, 28)
+        .map((r) => ({
+          iso2: r.countryIso2,
+          name: COUNTRIES[r.countryIso2]!.name,
+          centroid: COUNTRIES[r.countryIso2]!.centroid,
+          basis: `Both members of ${anchorOrg.abbreviation ?? anchorOrg.name} (Wikidata)`,
+          kind: 'pact' as const,
+        }))
+    : [];
 
+  /*
+   * Opposing parties come only from a conflict dataset naming both sides.
+   * They are never inferred from reporting, so a country with no dataset row
+   * shows none rather than a guess.
+   */
   const adversaries = (conflict?.conflicts ?? [])
     .flatMap((c) => [...c.sideA, ...c.sideB])
     .filter((p) => p.iso2 && p.iso2 !== country.iso2 && COUNTRIES[p.iso2])
@@ -306,6 +328,11 @@ async function handleCountry(env: Env, url: URL, iso2: string): Promise<Response
       basis: `Named as an opposing party by ${conflict!.provenance.source}`,
       kind: 'adversary' as const,
     }));
+
+  // De-duplicate: a country named as an opponent must not also draw a
+  // shared-membership line, or the globe contradicts itself.
+  const adversaryIsos = new Set(adversaries.map((a) => a.iso2));
+  const lineTargets = sharedPartners.filter((p) => !adversaryIsos.has(p.iso2));
 
   return json({
     country: {
@@ -354,10 +381,10 @@ async function handleCountry(env: Env, url: URL, iso2: string): Promise<Response
     relations: relation
       ? {
           organizations: relation.organizations,
-          allies: relation.allies.map((a) => ({
-            ...a,
-            name: COUNTRIES[a.iso2]?.name ?? a.iso2,
-          })),
+          // Named "shared memberships", not "allies": this is what the source
+          // supports, and the anchor body is stated so the list can be checked.
+          sharedWith: lineTargets,
+          anchorOrganization: anchorOrg,
           source: relation.provenance,
         }
       : null,

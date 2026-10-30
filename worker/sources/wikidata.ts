@@ -129,134 +129,150 @@ export async function fetchLeaders(opts: FetchOptions = {}): Promise<Fetched<Lea
   }
 }
 
-/** Bodies the app surfaces. Extending this list is the only change needed. */
-const ORGS: Array<{ qid: string; abbreviation: string | null }> = [
-  { qid: 'Q7184', abbreviation: 'NATO' },
-  { qid: 'Q458', abbreviation: 'EU' },
-  { qid: 'Q7172', abbreviation: 'OAS' },
-  { qid: 'Q1065', abbreviation: 'UN' },
-  { qid: 'Q170481', abbreviation: 'Arab League' },
-  { qid: 'Q7825', abbreviation: 'AU' },
-  { qid: 'Q7159', abbreviation: 'ASEAN' },
-  { qid: 'Q188822', abbreviation: 'OPEC' },
-  { qid: 'Q170304', abbreviation: 'CIS' },
-  { qid: 'Q842490', abbreviation: 'CSTO' },
-  { qid: 'Q1147410', abbreviation: 'SCO' },
-  { qid: 'Q189255', abbreviation: 'BRICS' },
-];
+/**
+ * Minimum country members for a body to count as multilateral. Below this, a
+ * "membership" is usually a bilateral or technical arrangement that says
+ * nothing useful about alignment.
+ */
+const MIN_ORG_MEMBERS = 8;
 
 /**
- * Organisation membership and declared diplomatic relations.
+ * Organisations are discovered from the data rather than hardcoded.
  *
- * Membership is read from both directions, because Wikidata records some of it
- * on the country (P463 "member of") and some on the organisation (P527 "has
- * part"), and neither side alone is complete.
- *
- * The ISO code is resolved through P17 as well as directly, because some
- * members hold their membership on one item and their ISO code on another:
- * the Netherlands (Q55) carries NATO and EU membership while the Kingdom of
- * the Netherlands (Q29999) carries ISO "NL". Without the P17 hop this query
- * returns NATO 31 / EU 26 and silently drops the Netherlands.
- *
- * Excluding statements with an end date is what correctly removes the United
- * Kingdom from the EU.
+ * An earlier version carried a hand-written map of QIDs to abbreviations. It
+ * was wrong: Q7825 is the World Trade Organization, not the African Union, and
+ * Q842490 is the OPCW, not a defence pact, so countries were shown memberships
+ * they do not hold. Reading the organisation, its label and its short name
+ * straight from Wikidata removes that whole class of error.
  */
+async function discoverOrganisations(
+  opts: FetchOptions,
+): Promise<Array<{ qid: string; label: string; short: string | null; members: number }>> {
+  const rows = await sparqlWithRetry(`
+    SELECT ?org ?orgLabel ?short (COUNT(DISTINCT ?iso) AS ?n) WHERE {
+      ?m wdt:P297 ?iso ; wdt:P463 ?org .
+      OPTIONAL { ?org wdt:P1813 ?short . FILTER(LANG(?short) = "en") }
+      SERVICE wikibase:label { bd:serviceParam wikibase:language "en" }
+    }
+    GROUP BY ?org ?orgLabel ?short
+    HAVING (COUNT(DISTINCT ?iso) >= ${MIN_ORG_MEMBERS})
+    ORDER BY DESC(?n)
+  `, opts, 40_000);
+
+  const out: Array<{ qid: string; label: string; short: string | null; members: number }> = [];
+  for (const r of rows) {
+    const qid = r.org?.value?.split('/').pop();
+    const label = r.orgLabel?.value;
+    if (!qid || !label || /^Q\d+$/.test(label)) continue;
+    out.push({
+      qid,
+      label,
+      short: r.short?.value ?? null,
+      members: Number(r.n?.value ?? 0),
+    });
+  }
+  return out;
+}
+
 export async function fetchRelations(opts: FetchOptions = {}): Promise<Fetched<Relation[]>> {
   const started = Date.now();
-  const byCountry = new Map<string, Relation>();
-  const ensure = (iso2: string): Relation => {
-    let rel = byCountry.get(iso2);
-    if (!rel) {
-      byCountry.set(iso2, (rel = {
-        countryIso2: iso2,
-        organizations: [],
-        allies: [],
-        adversaries: [],
-        provenance: {
-          source: 'Wikidata',
-          url: `https://www.wikidata.org/wiki/Special:EntityData?id=${iso2}`,
-          retrievedAt: now(),
-        },
-      }));
-    }
-    return rel;
-  };
-
   try {
-    const values = ORGS.map((o) => `wd:${o.qid}`).join(' ');
-    const orgRows = await sparqlWithRetry(`
-      SELECT DISTINCT ?iso ?org ?orgLabel WHERE {
+    const orgs = await discoverOrganisations(opts);
+    if (!orgs.length) throw new Error('no multilateral organisations discovered');
+    const byQid = new Map(orgs.map((o) => [o.qid, o]));
+
+    /*
+     * Membership is read from both directions, because Wikidata records some
+     * of it on the country (P463 "member of") and some on the organisation
+     * (P527 "has part"), and neither side alone is complete.
+     *
+     * The ISO code is resolved through P17 as well as directly, because some
+     * members hold membership on one item and their ISO code on another: the
+     * Netherlands (Q55) carries NATO and EU membership while the Kingdom of
+     * the Netherlands (Q29999) carries ISO "NL". Without that hop this query
+     * returns NATO 31 / EU 26 and silently drops the Netherlands.
+     *
+     * The hop is gated on the member being `instance of country` (Q6256) and
+     * having no ISO code of its own. Ungated, any entity with P17 pointing at
+     * a country inherited that country's ISO code, which handed Ukraine a
+     * membership of the African Union.
+     *
+     * Excluding statements with an end date is what correctly removes the
+     * United Kingdom from the EU.
+     */
+    const values = orgs.map((o) => `wd:${o.qid}`).join(' ');
+    const rows = await sparqlWithRetry(`
+      SELECT DISTINCT ?iso ?org WHERE {
         VALUES ?org { ${values} }
         { ?m p:P463 ?st . ?st ps:P463 ?org . FILTER NOT EXISTS { ?st pq:P582 ?e1 } }
         UNION
         { ?org p:P527 ?st . ?st ps:P527 ?m . FILTER NOT EXISTS { ?st pq:P582 ?e2 } }
-        { ?m wdt:P297 ?iso } UNION { ?m wdt:P17 ?par . ?par wdt:P297 ?iso }
-        SERVICE wikibase:label { bd:serviceParam wikibase:language "en" }
+        { ?m wdt:P297 ?iso }
+        UNION
+        {
+          ?m wdt:P31 wd:Q6256 ; wdt:P17 ?par .
+          ?par wdt:P297 ?iso .
+          FILTER NOT EXISTS { ?m wdt:P297 ?own }
+        }
       }
-    `, opts, 40_000);
+    `, opts, 60_000);
 
-    const abbrevByQid = new Map(ORGS.map((o) => [o.qid, o.abbreviation]));
-    for (const r of orgRows) {
+    const byCountry = new Map<string, Relation>();
+    for (const r of rows) {
       const iso2 = r.iso?.value;
-      const label = r.orgLabel?.value;
-      const qid = r.org?.value?.split('/').pop() ?? '';
-      if (!iso2 || !/^[A-Z]{2}$/.test(iso2) || !label) continue;
-      const rel = ensure(iso2);
+      const qid = r.org?.value?.split('/').pop();
+      if (!iso2 || !/^[A-Z]{2}$/.test(iso2) || !qid) continue;
+      const org = byQid.get(qid);
+      if (!org) continue;
+
+      let rel = byCountry.get(iso2);
+      if (!rel) {
+        byCountry.set(iso2, (rel = {
+          countryIso2: iso2,
+          organizations: [],
+          allies: [],
+          adversaries: [],
+          provenance: {
+            source: 'Wikidata',
+            url: 'https://query.wikidata.org/',
+            retrievedAt: now(),
+          },
+        }));
+      }
       if (rel.organizations.some((o) => o.wikidataId === qid)) continue;
-      rel.organizations.push({ name: label, wikidataId: qid, abbreviation: abbrevByQid.get(qid) ?? null });
+      rel.organizations.push({ name: org.label, wikidataId: qid, abbreviation: org.short });
     }
 
     /*
-     * P530 "diplomatic relation" records that two states have relations at
-     * all. It is not a claim of alliance, so it is surfaced under the honest
-     * label "has diplomatic relations with" and never as "ally" on its own.
-     * Real alignment shown in the UI comes from shared membership of a defence
-     * body, which is a verifiable fact rather than an interpretation.
+     * Memberships are listed smallest-first. A shared membership of a
+     * 20-member body says far more about alignment than a shared membership of
+     * the UN, so the panel and the globe lines both lead with the specific.
+     *
+     * Allies are not asserted here. Who shares a body with whom is computed
+     * when a country is requested, from these lists, and is labelled as
+     * exactly that: a shared membership, never an inferred alliance.
      */
-    const relRows = await sparqlWithRetry(`
-      SELECT ?iso ?otherIso WHERE {
-        ?country wdt:P297 ?iso ; wdt:P530 ?other .
-        ?other wdt:P297 ?otherIso .
-      }
-    `, opts, 40_000);
-
-    const DEFENCE_BODIES = new Set(['Q7184', 'Q842490']);
-    for (const r of relRows) {
-      const a = r.iso?.value;
-      const b = r.otherIso?.value;
-      if (!a || !b || a === b) continue;
-      if (!/^[A-Z]{2}$/.test(a) || !/^[A-Z]{2}$/.test(b)) continue;
-      const rel = ensure(a);
-      if (rel.allies.length >= 40) continue;
-      if (rel.allies.some((x) => x.iso2 === b)) continue;
-      rel.allies.push({ iso2: b, name: b, basis: 'Wikidata P530 diplomatic relation' });
-    }
-
-    // Promote shared defence-pact membership above bare diplomatic relations,
-    // since that is the strongest alignment signal available from this source.
+    const memberCount = (qid: string) => byQid.get(qid)?.members ?? Number.MAX_SAFE_INTEGER;
     for (const rel of byCountry.values()) {
-      const pacts = rel.organizations.filter((o) => DEFENCE_BODIES.has(o.wikidataId));
-      if (!pacts.length) continue;
-      for (const other of byCountry.values()) {
-        if (other.countryIso2 === rel.countryIso2) continue;
-        const shared = pacts.find((p) => other.organizations.some((o) => o.wikidataId === p.wikidataId));
-        if (!shared) continue;
-        const existing = rel.allies.find((a) => a.iso2 === other.countryIso2);
-        const basis = `Both members of ${shared.abbreviation ?? shared.name} (Wikidata)`;
-        if (existing) existing.basis = basis;
-        else rel.allies.unshift({ iso2: other.countryIso2, name: other.countryIso2, basis });
-      }
+      rel.organizations.sort((a, b) => memberCount(a.wikidataId) - memberCount(b.wikidataId));
     }
 
     const data = [...byCountry.values()];
     return {
       data,
-      health: mkHealth('wikidata-relations', 'Wikidata (alliances)', started, true, data.length, null),
+      health: mkHealth(
+        'wikidata-relations',
+        'Wikidata (memberships)',
+        started,
+        true,
+        data.length,
+        null,
+      ),
     };
   } catch (err) {
     return {
       data: [],
-      health: mkHealth('wikidata-relations', 'Wikidata (alliances)', started, false, 0, errorMessage(err)),
+      health: mkHealth('wikidata-relations', 'Wikidata (memberships)', started, false, 0, errorMessage(err)),
     };
   }
 }

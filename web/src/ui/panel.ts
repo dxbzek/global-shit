@@ -235,8 +235,9 @@ function conflictSection(detail: CountryDetail): HTMLElement {
 function relationsSection(detail: CountryDetail, cb: PanelCallbacks): HTMLElement {
   const rel = detail.relations;
   const orgs = rel?.organizations ?? [];
-  const pacts = detail.lines.filter((l) => l.kind === 'pact');
+  const shared = detail.lines.filter((l) => l.kind === 'pact');
   const adversaries = detail.lines.filter((l) => l.kind === 'adversary');
+  const anchor = rel?.anchorOrganization ?? null;
 
   const countryButton = (iso2: string, name: string, title: string) => {
     const btn = el('button', { class: 'chip', type: 'button', title }, [
@@ -248,7 +249,7 @@ function relationsSection(detail: CountryDetail, cb: PanelCallbacks): HTMLElemen
   };
 
   return el('section', { class: 'section' }, [
-    el('h3', { class: 'eyebrow', text: 'Alliances and relations' }),
+    el('h3', { class: 'eyebrow', text: 'Memberships and relations' }),
 
     el('div', { class: 'row' }, [
       el('span', { class: 'k', text: 'Memberships' }),
@@ -271,17 +272,29 @@ function relationsSection(detail: CountryDetail, cb: PanelCallbacks): HTMLElemen
     ]),
 
     el('div', { class: 'row' }, [
-      el('span', { class: 'k', text: 'Defence pacts' }),
+      el('span', {
+        class: 'k',
+        text: anchor ? `Also in ${anchor.abbreviation ?? anchor.name}` : 'Shares a body with',
+      }),
       el('span', { class: 'v' }, [
-        pacts.length
+        shared.length
           ? el(
               'div',
               { class: 'rail-chips' },
-              pacts.slice(0, 12).map((p) => countryButton(p.iso2, p.name, p.basis)),
+              shared.slice(0, 12).map((p) => countryButton(p.iso2, p.name, p.basis)),
             )
-          : noData('No shared defence-pact membership found in Wikidata.'),
-        pacts.length > 12
-          ? el('div', { class: 'detail', text: `and ${pacts.length - 12} more` })
+          : noData('No shared multilateral membership found in Wikidata.'),
+        shared.length > 12
+          ? el('div', { class: 'detail', text: `and ${shared.length - 12} more` })
+          : null,
+        // Stated plainly: shared membership is not the same as alliance.
+        anchor
+          ? el('div', {
+              class: 'detail',
+              text:
+                `Countries sharing this country's most specific multilateral body. ` +
+                `A shared membership is not an alliance, and none is claimed.`,
+            })
           : null,
       ]),
     ]),

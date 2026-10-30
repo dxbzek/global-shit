@@ -321,3 +321,12 @@ button {
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+/*
+ * The [hidden] attribute is only a UA default of display:none, so any
+ * component rule that sets a display value silently overrides it. Several
+ * elements here are flex, so hidden is enforced explicitly.
+ */
+[hidden] {
+  display: none !important;
+}

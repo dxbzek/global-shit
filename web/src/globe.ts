@@ -75,6 +75,12 @@ export interface GlobeOptions {
   googleKey?: string | null;
   onPick: (iso2: string | null) => void;
   onHover: (info: { iso2: string; x: number; y: number } | null) => void;
+  /**
+   * Called when satellite imagery cannot load. Cesium reports tile failures
+   * through an event and logs raw minified errors to the console when nothing
+   * is listening, so this is handled rather than left to leak.
+   */
+  onImageryError?: (message: string) => void;
 }
 
 export class Globe {
@@ -89,6 +95,8 @@ export class Globe {
   private tileset?: Cesium3DTileset;
   /** Drives the conflict-zone pulse without re-rendering geometry. */
   private pulsePhase = 0;
+  /** Imagery failures are reported once, not once per failed tile. */
+  private imageryErrorReported = false;
 
   constructor(private readonly opts: GlobeOptions) {
     this.reducedMotion = opts.reducedMotion;
@@ -109,6 +117,10 @@ export class Globe {
       sceneModePicker: false,
       selectionIndicator: false,
       scene3DOnly: true,
+      // No default base layer. Without this, Cesium creates an Ion imagery
+      // layer and requests api.cesium.com on every load, even though
+      // setImagery replaces it immediately with the key-free provider.
+      baseLayer: false,
       sceneMode: SceneMode.SCENE3D,
       // Flat ellipsoid by default; real terrain needs an Ion token and costs
       // bandwidth that buys little at the zoom levels this app uses.
@@ -166,6 +178,26 @@ export class Globe {
     });
   }
 
+  /**
+   * Attaches an error listener to an imagery provider.
+   *
+   * Cesium's TileProviderError logs to the console only when its event has no
+   * listeners, so handling it both silences the raw minified output and lets
+   * the app tell the reader that imagery, specifically, is unavailable while
+   * the rest of the globe still works.
+   */
+  private watchImagery(provider: { errorEvent?: { addEventListener: (fn: (e: unknown) => void) => void } }): void {
+    provider.errorEvent?.addEventListener((event) => {
+      if (this.imageryErrorReported) return;
+      this.imageryErrorReported = true;
+      const message =
+        event && typeof event === 'object' && 'message' in event && typeof event.message === 'string'
+          ? event.message
+          : 'tile request failed';
+      this.opts.onImageryError?.(message);
+    });
+  }
+
   /** Swaps the imagery layer in place, keeping the camera and overlays. */
   async setImagery(source: ImagerySource): Promise<void> {
     const layers = this.viewer.imageryLayers;
@@ -180,8 +212,10 @@ export class Globe {
       switch (source) {
         case 'ion': {
           if (!this.opts.ionToken) throw new Error('no Ion token');
+          const provider = await createWorldImageryAsync();
           layers.removeAll();
-          layers.addImageryProvider(await createWorldImageryAsync());
+          layers.addImageryProvider(provider);
+          this.watchImagery(provider);
           this.viewer.terrainProvider = await createWorldTerrainAsync();
           break;
         }
@@ -198,29 +232,38 @@ export class Globe {
           break;
         }
         case 'osm': {
+          const provider = new OpenStreetMapImageryProvider({ url: 'https://tile.openstreetmap.org/' });
           layers.removeAll();
-          layers.addImageryProvider(
-            new OpenStreetMapImageryProvider({ url: 'https://tile.openstreetmap.org/' }),
-          );
+          layers.addImageryProvider(provider);
+          this.watchImagery(provider);
           break;
         }
         case 'esri':
         default: {
           // Default: free, key-free satellite imagery.
-          layers.removeAll();
-          layers.addImageryProvider(
-            await ArcGisMapServerImageryProvider.fromUrl(
-              'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer',
-              { enablePickFeatures: false },
-            ),
+          const provider = await ArcGisMapServerImageryProvider.fromUrl(
+            'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer',
+            { enablePickFeatures: false },
           );
+          layers.removeAll();
+          layers.addImageryProvider(provider);
+          this.watchImagery(provider);
           break;
         }
       }
-    } catch {
+    } catch (err) {
       // A failed imagery swap must not leave a blank globe, so fall back to
-      // the key-free provider unless that is what already failed.
-      if (source !== 'esri') await this.setImagery('esri');
+      // the key-free provider unless that is what already failed. When even
+      // that fails, the globe keeps its base colour and country layer, and the
+      // reader is told imagery is missing rather than left wondering.
+      if (source !== 'esri') {
+        await this.setImagery('esri');
+        return;
+      }
+      if (!this.imageryErrorReported) {
+        this.imageryErrorReported = true;
+        this.opts.onImageryError?.(err instanceof Error ? err.message : String(err));
+      }
     }
   }
 
