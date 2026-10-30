@@ -1,0 +1,26 @@
+name = "world-pulse"
+main = "worker/index.ts"
+compatibility_date = "2024-11-06"
+
+# Serves the built single-page app. Any path that is not /api/* falls through
+# to these assets, so deep links like /?country=UA load the app shell.
+[assets]
+directory = "dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+# Continuous ingestion. One tick a minute, each handling a rotating shard of
+# the feeds, so fresh items land every minute without polling any single
+# upstream faster than it tolerates. See worker/pipeline.ts.
+[triggers]
+crons = ["* * * * *"]
+
+# Cache for every data type. Create with:
+#   npx wrangler kv namespace create WORLD_PULSE
+# then paste the printed id below.
+[[kv_namespaces]]
+binding = "WORLD_PULSE"
+id = "replace-with-your-kv-namespace-id"
+
+[observability]
+enabled = true
