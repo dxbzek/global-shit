@@ -93,6 +93,49 @@ const RULES: Rule[] = [
 ];
 
 /**
+ * Active hostilities: terms that report fighting actually happening, as
+ * distinct from the wider "war and conflict" category.
+ *
+ * The two bars are deliberately different. The category is a browsing aid and
+ * can afford to be generous: a reader filtering for war news is happy to see
+ * an arms-sale story or a defence-policy piece. A country's conflict *status*
+ * is an evidential claim, and the same generosity there is how Japan ends up
+ * coloured as a war zone because of a missile-production agreement and a
+ * history piece about 1945.
+ *
+ * Terms excluded on purpose, each observed producing a false status in live
+ * data: "missile" (arms sales and production), "strikes" (industrial action),
+ * "troops" and "soldiers" (deployments, parades, veterans), "conflict" itself
+ * (as in "avert fresh conflict"), and "crisis".
+ */
+export const ACTIVE_HOSTILITY_TERMS = [
+  'war', 'warfare', 'invasion', 'invade', 'invaded', 'invading', 'offensive',
+  'airstrike', 'air strike', 'shelling', 'shelled', 'bombardment', 'bombing',
+  'bombed', 'ceasefire', 'truce', 'front line', 'frontline', 'military operation',
+  'insurgency', 'militants', 'rebels', 'militia', 'armed group', 'combat',
+  'artillery', 'occupied', 'occupation', 'siege', 'besieged', 'clashes',
+  'gunmen', 'massacre', 'atrocities', 'war crimes', 'genocide', 'coup',
+  'drone strike', 'drone attack', 'air raid', 'rocket attack', 'missile strike',
+  'missile attack', 'ground operation', 'paramilitary', 'ethnic cleansing',
+  'killed in', 'death toll',
+];
+
+/**
+ * Active-hostility terms found in a HEADLINE.
+ *
+ * Headline only, not the summary: a country genuinely at war appears in the
+ * headline, while summaries drag in background and analysis. Checking the
+ * summary is what let a story about a Polish court crisis and one about an
+ * American political movement count as conflict evidence.
+ */
+export function activeHostilityTerms(title: string): string[] {
+  const text = ` ${title.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ')} `;
+  return ACTIVE_HOSTILITY_TERMS.filter(
+    (term) => text.includes(` ${term} `) || text.includes(` ${term}s `),
+  );
+}
+
+/**
  * Good news is deliberately the narrowest rule in the app, because a loose
  * one produces grim results. An item is only labelled good news when BOTH:
  *
