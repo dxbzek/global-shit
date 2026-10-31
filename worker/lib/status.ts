@@ -40,12 +40,14 @@ const WAR_STORY_FLOOR = 8;
 const CONFLICT_STORY_FLOOR = 3;
 const MIN_INDEPENDENT_OWNERS = 2;
 
-/**
- * A country named beyond this position in a story's match list is a passing
- * mention, not where the fighting is. "Russia's presence divides G20
- * ministers" matches five countries; only the first two are about Russia.
+/*
+ * Status is attributed only to a story's PRIMARY country: the leading country
+ * matched in the headline. Using the whole match list, even trimmed to the
+ * first two, attributed hostilities to the wrong place - "Evacuated Ukrainians
+ * from Russian-occupied Oleshky arrive in Belarus" made Belarus a conflict
+ * zone, and a story about people killed in Ethiopia did the same to France,
+ * which was only named in the summary.
  */
-const LEADING_MATCH_SLOTS = 2;
 
 /** Deaths in the dataset window that mark a conflict as a war. */
 const WAR_DEATH_FLOOR = 1000;
@@ -136,7 +138,7 @@ export function deriveStatuses(input: StatusInput): Map<string, StatusResult> {
     const owners = independentOwners(story);
     if (!owners.length) continue;
 
-    for (const iso2 of story.countries.slice(0, LEADING_MATCH_SLOTS)) {
+    for (const iso2 of story.primaryCountries) {
       let ev = perCountry.get(iso2);
       if (!ev) perCountry.set(iso2, (ev = { owners: new Set(), stories: [], terms: new Set() }));
       for (const owner of owners) ev.owners.add(owner);
@@ -244,7 +246,7 @@ export function deriveTension(stories: Story[], already: Map<string, StatusResul
     const owners = independentOwners(story);
     if (!owners.length) continue;
 
-    for (const iso2 of story.countries.slice(0, LEADING_MATCH_SLOTS)) {
+    for (const iso2 of story.primaryCountries) {
       // A country that already has a conflict status keeps it; tension is
       // only for countries with friction and no fighting.
       if (already.has(iso2)) continue;
