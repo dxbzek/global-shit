@@ -33,16 +33,16 @@
   font-size: 12px;
   color: var(--ink-dim);
   text-align: left;
-  border-radius: var(--r-sm);
+  border-radius: 0;
   transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
 
-.country-row:hover { color: var(--ink); background: rgba(255, 255, 255, 0.045); }
+.country-row:hover { color: var(--ink); background: rgba(237, 232, 224, 0.045); }
 
 .country-row.is-active {
   color: var(--ink);
-  background: rgba(90, 209, 245, 0.13);
-  box-shadow: inset 2px 0 0 var(--accent);
+  background: rgba(237, 232, 224, 0.08);
+  box-shadow: inset 2px 0 0 var(--ink);
 }
 
 .country-name {
@@ -73,7 +73,7 @@
 .news-group + .news-group {
   margin-top: 15px;
   padding-top: 13px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--rule);
 }
 
 /* --- evidence ------------------------------------------------------------ */
@@ -92,7 +92,7 @@
 .conflict + .conflict {
   margin-top: 13px;
   padding-top: 11px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--rule);
 }
 
 .conflict-name {
@@ -106,9 +106,9 @@
   gap: 9px;
   align-items: center;
   padding: 9px 11px;
-  background: rgba(255, 255, 255, 0.025);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
+  background: rgba(237, 232, 224, 0.025);
+  border: 1px solid var(--rule);
+  border-radius: 0;
 }
 
 .conflict-sides .side {
@@ -149,9 +149,9 @@
   flex-direction: column;
   gap: 2px;
   padding: 10px 11px;
-  background: rgba(255, 255, 255, 0.025);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
+  background: rgba(237, 232, 224, 0.025);
+  border: 1px solid var(--rule);
+  border-radius: 0;
 }
 
 .price-cell .price-value {
@@ -165,7 +165,7 @@
   padding-left: 9px;
   font-size: 10px;
   color: var(--ink-faint);
-  border-left: 1px solid var(--line);
+  border-left: 1px solid var(--rule);
 }
 .market-meta[data-stale='true'] { color: var(--tension); }
 
@@ -174,9 +174,9 @@
 .story-detail {
   margin-top: 10px;
   padding: 11px;
-  background: rgba(255, 255, 255, 0.025);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
+  background: rgba(237, 232, 224, 0.025);
+  border: 1px solid var(--rule);
+  border-radius: 0;
   animation: rise var(--t-base) var(--ease-out) both;
 }
 
@@ -192,7 +192,7 @@
   gap: 5px;
   margin-top: 12px;
   padding-top: 10px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--rule);
 }
 
 .citation {
@@ -202,7 +202,7 @@
   padding: 5px 0;
   font-size: 11px;
 }
-.citation + .citation { border-top: 1px solid var(--line); }
+.citation + .citation { border-top: 1px solid var(--rule); }
 
 .citation-outlet {
   font-size: 12px;
@@ -210,7 +210,7 @@
   border-bottom: 1px solid transparent;
   transition: border-color var(--t-fast) var(--ease);
 }
-.citation-outlet:hover { border-bottom-color: var(--accent); }
+.citation-outlet:hover { border-bottom-color: var(--ink); }
 
 .citation-owner {
   grid-column: 1;
@@ -237,7 +237,7 @@
   padding-top: 8px;
   font-size: 10.5px;
   color: var(--ink-faint);
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--rule);
 }
 
 .stale-flag {
@@ -265,7 +265,7 @@
   border-radius: 50%;
   transition: color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
 }
-.toast-x:hover { color: var(--ink); background: rgba(255, 255, 255, 0.08); }
+.toast-x:hover { color: var(--ink); background: rgba(237, 232, 224, 0.08); }
 
 /* --- hover card positioning --------------------------------------------- */
 
@@ -299,4 +299,36 @@
   .citation { grid-template-columns: 1fr; }
   .citation-time,
   .citation-type { grid-column: 1; text-align: left; }
+}
+
+/* --- membership chips ---------------------------------------------------- */
+
+/*
+ * Organisation names run long ("Multilateral Investment Guarantee Agency"),
+ * and a chip wide enough for one pushes the panel's content past its edge.
+ * Truncating keeps the row intact; the full name is in the title attribute.
+ */
+.chip-truncate {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  line-height: 24px;
+}
+
+.chip-more {
+  color: var(--ink-faint);
+  border-style: dashed;
+}
+.chip-more:hover {
+  color: var(--ink);
+  border-style: solid;
+}
+
+/* Nothing inside a panel row may exceed its column. */
+.row .v,
+.rail-chips {
+  min-width: 0;
+  max-width: 100%;
 }

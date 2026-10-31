@@ -29,6 +29,9 @@ written from memory, and anything a source does not provide reads **No data**.
 - **Globe.** CesiumJS with free satellite imagery and no API key. Countries are
   coloured by conflict status, conflict zones pulse, and clicking one flies the
   camera to frame it.
+- **Editorial look.** True black, warm paper-white type, a serif for reporting
+  and a grotesk for anything measured, hairline rules, square corners. No
+  blur, no glow, no rounded glass. See [Design](#design).
 - **Country panel.** Current head of state and head of government, conflict
   status with the rule that produced it, multilateral memberships, lines drawn
   on the globe to co-members and to any opposing party, and the latest news
@@ -181,6 +184,34 @@ Adding another provider means one more case in `setImagery()` in
 `web/src/globe.ts`.
 
 ---
+
+## Design
+
+The reference is print news, not a dashboard.
+
+**Colour is rationed.** The only chroma in the interface is conflict status
+and one ink red, and that red *is* the war red: a single meaning, used once.
+Interface emphasis is carried by inversion instead — a black-on-paper block,
+the way a printed tag works — so nothing competes with the globe.
+
+That rule is easy to state and easy to break. The first pass broke it twice:
+every accuracy meter filled red, so "Ownership known 20/20" read as an alarm
+rather than a good score, and every source link was red, which put the colour
+beside every fact on the page. Both are now ink. Red survives in exactly two
+places: war status, and the focus ring.
+
+**Two faces, dividing content from data.** Source Serif sets anything
+editorial — headlines, country names, conflict names. Archivo sets anything
+measured — counts, scores, labels, prices, times. A reader can tell reporting
+from measurement without reading either.
+
+**No blur, no shadow, no radius.** Frosted panels with rounded corners are the
+strongest single tell of a generated interface, and print has none of it.
+Panels are flat opaque sheets separated by hairline rules; depth comes from
+contrast and spacing.
+
+**Status tones are print inks**, deliberately desaturated. On a true-black
+field a saturated fill reads as a glowing overlay rather than as ink on paper.
 
 ## How accuracy works
 

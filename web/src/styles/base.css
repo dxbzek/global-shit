@@ -1,75 +1,83 @@
 /*
- * World Pulse design system.
+ * World Pulse design system — editorial.
  *
- * One direction, held everywhere: a near-black field with a cold blue
- * undertone, thin type, hairline borders, and colour reserved almost entirely
- * for conflict status. The globe is the only bright object on the screen, so
- * every panel sits back and lets it lead.
+ * The reference is print news, not a dashboard: true black, warm paper-white
+ * type, a serif for anything editorial and a grotesk for anything measured,
+ * hairline rules instead of boxes, square corners, no blur, no glow.
+ *
+ * Colour is rationed. The only chroma in the interface is conflict status and
+ * one ink red, and the red is the war red: a single meaning, used once. UI
+ * emphasis is carried by inversion — a black-on-paper block, the way a printed
+ * tag works — so that nothing competes with the globe for the reader's eye.
  */
 
 :root {
-  /* Field */
-  --bg: #04060c;
-  --bg-raised: #0a0e18;
-  --panel: rgba(10, 14, 24, 0.86);
-  --panel-solid: #0a0e18;
-  --scrim: rgba(4, 6, 12, 0.72);
+  /* Field. True black, so the globe's limb is the brightest thing on screen. */
+  --bg: #000000;
+  --bg-raised: #0b0a09;
+  --sheet: #080706;
+  --sheet-solid: #0b0a09;
 
-  /* Hairlines. Two weights only: a resting line and a hovered one. */
-  --line: rgba(142, 164, 200, 0.14);
-  --line-strong: rgba(142, 164, 200, 0.26);
+  /*
+   * Hairlines, warm rather than blue. Two weights: a resting rule and a
+   * hovered one. Everything in the layout is separated by rules, not borders.
+   */
+  --rule: rgba(237, 232, 224, 0.13);
+  --rule-strong: rgba(237, 232, 224, 0.26);
 
-  /* Type */
-  --ink: #e8edf7;
-  --ink-dim: #95a3bd;
-  --ink-faint: #5f6c84;
+  /* Type. Warm off-white, the colour of newsprint under lamplight. */
+  --ink: #ede8e0;
+  --ink-dim: #9a938a;
+  --ink-faint: #6b655d;
 
-  /* The single accent. Used for focus, live state and the active filter. */
-  --accent: #5ad1f5;
-  --accent-dim: #2a7f99;
-  --accent-glow: rgba(90, 209, 245, 0.18);
+  /*
+   * The one accent. It is also the war colour: a single red carrying a single
+   * meaning. Interface emphasis uses inversion instead, never this.
+   */
+  --red: #c8372d;
+  --red-quiet: rgba(200, 55, 45, 0.16);
 
-  /* Status. The only saturated colour in the interface. */
-  --war: #ff3d5e;
-  --conflict: #ff8a3d;
-  --tension: #ffd23f;
-  --peace: #35d07f;
-  --unknown: #4d5a72;
+  /* Status, in print tones: desaturated, as ink on paper behaves. */
+  --war: #c8372d;
+  --conflict: #b86b2e;
+  --tension: #b9972f;
+  --peace: #4f7a54;
+  --unknown: #55504a;
 
-  /* Accuracy bands, deliberately desaturated so they never outshout status. */
-  --verified: #35d07f;
-  --corroborated: #5ad1f5;
-  --reported: #c3ab6a;
-  --unconfirmed: #7c8699;
+  /* Accuracy bands. Deliberately quieter than status. */
+  --verified: #4f7a54;
+  --corroborated: #8a8378;
+  --reported: #6b655d;
+  --unconfirmed: #55504a;
 
-  /* Geometry. One radius scale, one shadow. */
-  --r-sm: 6px;
-  --r-md: 10px;
-  --r-lg: 16px;
-  --shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  /*
+   * Geometry. Square corners throughout: a rounded, blurred panel is the
+   * single strongest signal of a generated interface, and print has none.
+   */
+  --r-sm: 0px;
+  --r-md: 0px;
+  --r-lg: 0px;
 
-  /* Motion. Every duration in the app comes from these four tokens. */
-  --t-fast: 120ms;
-  --t-base: 220ms;
-  --t-slow: 420ms;
+  /* Motion. Every duration in the app comes from these. */
+  --t-fast: 110ms;
+  --t-base: 200ms;
+  --t-slow: 380ms;
   --t-flight: 1600ms;
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 
   /* Layout */
-  --bar-h: 44px;
-  --ticker-h: 40px;
-  --panel-w: 420px;
+  --bar-h: 46px;
+  --ticker-h: 38px;
+  --panel-w: 430px;
 
-  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-  --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  /* Source Serif carries editorial text; Archivo carries anything measured. */
+  --serif: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+  --sans: 'Archivo', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --mono: 'Archivo', ui-monospace, Menlo, monospace;
+  --font: var(--sans);
 }
 
-/*
- * Reduced motion is honoured globally rather than per-component: every
- * transition and animation collapses to a near-instant state change, and the
- * globe's idle spin and camera flights are disabled in globe.ts.
- */
 @media (prefers-reduced-motion: reduce) {
   :root {
     --t-fast: 1ms;
@@ -100,29 +108,43 @@ body {
   overflow: hidden;
   background: var(--bg);
   color: var(--ink);
-  font-family: var(--font);
+  font-family: var(--sans);
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-/* Tabular figures everywhere a number can change, so digits do not jitter. */
+/*
+ * Headlines and country names are set in the serif; everything measured
+ * (counts, scores, labels, prices) stays in the grotesk, so the two faces
+ * divide editorial content from data rather than decorating at random.
+ */
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.serif,
+.news-title,
+.panel-title h2,
+.conflict-name {
+  font-family: var(--serif);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+/* Tabular figures wherever a number can change, so digits do not jitter. */
 .num,
 .score,
 .price-value,
 time {
   font-variant-numeric: tabular-nums;
   font-feature-settings: 'tnum' 1;
-}
-
-h1,
-h2,
-h3,
-h4 {
-  margin: 0;
-  font-weight: 560;
-  letter-spacing: -0.01em;
 }
 
 a {
@@ -138,17 +160,12 @@ button {
   cursor: pointer;
 }
 
-/*
- * One focus treatment for the whole app. Visible on keyboard navigation,
- * suppressed for pointer clicks, never removed.
- */
+/* One focus treatment. The red earns its place here: it means "attend to". */
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--red);
   outline-offset: 2px;
-  border-radius: var(--r-sm);
 }
 
-/* Screen-reader-only text, used for live announcements and icon labels. */
 .sr-only {
   position: absolute;
   width: 1px;
@@ -161,80 +178,83 @@ button {
   border: 0;
 }
 
-/* Scrollbars, restyled so panels do not sprout a bright native bar. */
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--line-strong) transparent;
+  scrollbar-color: var(--rule-strong) transparent;
 }
 *::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
 }
 *::-webkit-scrollbar-track {
   background: transparent;
 }
 *::-webkit-scrollbar-thumb {
-  background: var(--line-strong);
-  border-radius: 99px;
+  background: var(--rule-strong);
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: rgba(142, 164, 200, 0.4);
+  background: rgba(237, 232, 224, 0.4);
 }
 
 /* --- shared primitives ---------------------------------------------------- */
 
+/*
+ * A sheet, not a card: flat, opaque, square, separated by a rule. No blur and
+ * no shadow — depth here comes from contrast and spacing.
+ */
 .panel {
-  background: var(--panel);
-  backdrop-filter: blur(20px) saturate(1.3);
-  -webkit-backdrop-filter: blur(20px) saturate(1.3);
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
-  box-shadow: var(--shadow);
+  background: var(--sheet);
+  border: 1px solid var(--rule);
 }
 
-/* Small uppercase label used above every group of data. */
+/*
+ * Section labels. Small caps with wide tracking is the oldest device in news
+ * typography for marking a standfirst, and it costs no colour.
+ */
 .eyebrow {
   font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ink-faint);
 }
 
+/*
+ * Filter tags. Resting state is a hairline outline; active state inverts to
+ * black-on-paper, the way a printed tag reads. No accent fill anywhere.
+ */
 .chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 28px;
-  padding: 0 10px;
+  height: 26px;
+  padding: 0 9px;
   font-size: 12px;
   color: var(--ink-dim);
   white-space: nowrap;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--line);
-  border-radius: 99px;
+  background: transparent;
+  border: 1px solid var(--rule);
   transition: color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease),
     background-color var(--t-fast) var(--ease);
 }
 
 .chip:hover {
   color: var(--ink);
-  border-color: var(--line-strong);
-  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--rule-strong);
 }
 
 .chip[aria-pressed='true'],
 .chip.is-active {
   color: var(--bg);
-  background: var(--accent);
-  border-color: var(--accent);
-  font-weight: 560;
+  background: var(--ink);
+  border-color: var(--ink);
+  font-weight: 600;
 }
 
-/* Status dot. Colour is set by a data-status attribute, never inline. */
+/* Status dot. Colour set by data-status, never inline. */
 .dot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   flex: none;
   border-radius: 50%;
   background: var(--unknown);
@@ -250,15 +270,15 @@ button {
 [data-status='unknown'] .dot,
 .dot[data-status='unknown'] { background: var(--unknown); }
 
-/* A war dot pulses, so conflict reads at a glance without reading text. */
+/* War pulses, so conflict registers before any text is read. */
 .dot[data-status='war'],
 [data-status='war'] .dot {
-  animation: dot-pulse 2.4s var(--ease) infinite;
+  animation: dot-pulse 2.6s var(--ease) infinite;
 }
 
 @keyframes dot-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 61, 94, 0.5); }
-  50% { box-shadow: 0 0 0 5px rgba(255, 61, 94, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(200, 55, 45, 0.45); }
+  50% { box-shadow: 0 0 0 4px rgba(200, 55, 45, 0); }
 }
 
 /* --- loading skeletons --------------------------------------------------- */
@@ -266,12 +286,11 @@ button {
 .skeleton {
   background: linear-gradient(
     90deg,
-    rgba(142, 164, 200, 0.06) 25%,
-    rgba(142, 164, 200, 0.13) 37%,
-    rgba(142, 164, 200, 0.06) 63%
+    rgba(237, 232, 224, 0.05) 25%,
+    rgba(237, 232, 224, 0.1) 37%,
+    rgba(237, 232, 224, 0.05) 63%
   );
   background-size: 400% 100%;
-  border-radius: var(--r-sm);
   animation: shimmer 1.4s ease-in-out infinite;
 }
 
@@ -282,14 +301,10 @@ button {
 
 /* --- entrance animations ------------------------------------------------- */
 
-/*
- * News items stagger in. The delay is set from an index by the renderer and
- * capped, so a long list never feels like it is loading slowly.
- */
 @keyframes rise {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
@@ -304,7 +319,7 @@ button {
 @keyframes slide-in-right {
   from {
     opacity: 0;
-    transform: translateX(24px);
+    transform: translateX(18px);
   }
   to {
     opacity: 1;
@@ -324,7 +339,7 @@ button {
 
 /*
  * The [hidden] attribute is only a UA default of display:none, so any
- * component rule that sets a display value silently overrides it. Several
+ * component rule setting a display value silently overrides it. Several
  * elements here are flex, so hidden is enforced explicitly.
  */
 [hidden] {

@@ -232,6 +232,46 @@ function conflictSection(detail: CountryDetail): HTMLElement {
   ]);
 }
 
+/**
+ * Membership chips, capped.
+ *
+ * Organisations arrive most-specific first, and a well-connected country
+ * belongs to forty of them. Listing all of them buries the few that say
+ * anything — nobody learns much from "also in the Universal Postal Union" —
+ * so the specific ones show and the rest expand on request.
+ */
+const MEMBERSHIPS_SHOWN = 8;
+
+function membershipChips(
+  orgs: Array<{ name: string; wikidataId: string; abbreviation: string | null }>,
+): HTMLElement {
+  const wrap = el('div', { class: 'rail-chips' });
+  const chip = (o: (typeof orgs)[number]) =>
+    el('span', {
+      class: 'chip chip-truncate',
+      text: o.abbreviation ?? o.name,
+      title: `${o.name} - from Wikidata (P463 / P527)`,
+    });
+
+  for (const o of orgs.slice(0, MEMBERSHIPS_SHOWN)) wrap.append(chip(o));
+
+  const rest = orgs.slice(MEMBERSHIPS_SHOWN);
+  if (!rest.length) return wrap;
+
+  const more = el('button', {
+    class: 'chip chip-more',
+    type: 'button',
+    'aria-expanded': 'false',
+    text: `+${rest.length} more`,
+  });
+  more.addEventListener('click', () => {
+    more.remove();
+    for (const o of rest) wrap.append(chip(o));
+  });
+  wrap.append(more);
+  return wrap;
+}
+
 function relationsSection(detail: CountryDetail, cb: PanelCallbacks): HTMLElement {
   const rel = detail.relations;
   const orgs = rel?.organizations ?? [];
@@ -254,19 +294,7 @@ function relationsSection(detail: CountryDetail, cb: PanelCallbacks): HTMLElemen
     el('div', { class: 'row' }, [
       el('span', { class: 'k', text: 'Memberships' }),
       el('span', { class: 'v' }, [
-        orgs.length
-          ? el(
-              'div',
-              { class: 'rail-chips' },
-              orgs.map((o) =>
-                el('span', {
-                  class: 'chip',
-                  text: o.abbreviation ?? o.name,
-                  title: `${o.name} - from Wikidata (P463 / P527)`,
-                }),
-              ),
-            )
-          : noData('Wikidata records no membership of the bodies this app tracks.'),
+        orgs.length ? membershipChips(orgs) : noData('Wikidata records no membership of the bodies this app tracks.'),
         rel ? el('div', {}, [cite(rel.source)]) : null,
       ]),
     ]),
