@@ -85,6 +85,13 @@ function hasWord(haystack: string, needle: string): boolean {
 
 export interface MatchResult {
   countries: string[];
+  /**
+   * The leading country matched in the TITLE, or null when every match came
+   * from the summary. This is the only country a story can be evidence
+   * *about*: a country named in the summary is context, and one named second
+   * in the headline is usually a destination, a commentator or a bystander.
+   */
+  primary: string | null;
   /** Short description of why, shown in the UI so a tag can be judged. */
   matchedBy: string;
 }
@@ -101,6 +108,7 @@ export function matchCountries(title: string, summary?: string | null): MatchRes
 
   const scores = new Map<string, number>();
   const reasons = new Map<string, string>();
+  const titleHits = new Map<string, number>();
   const contextual: Matcher[] = [];
 
   for (const m of MATCHERS) {
@@ -114,6 +122,7 @@ export function matchCountries(title: string, summary?: string | null): MatchRes
     }
     const gain = m.weight * (inTitle ? 2 : 1);
     scores.set(m.iso2, (scores.get(m.iso2) ?? 0) + gain);
+    if (inTitle) titleHits.set(m.iso2, (titleHits.get(m.iso2) ?? 0) + m.weight);
     if (!reasons.has(m.iso2)) {
       reasons.set(m.iso2, `${m.kind} "${m.needle}" in ${inTitle ? 'title' : 'summary'}`);
     }
@@ -134,7 +143,7 @@ export function matchCountries(title: string, summary?: string | null): MatchRes
     }
   }
 
-  if (!scores.size) return { countries: [], matchedBy: 'no country matched' };
+  if (!scores.size) return { countries: [], primary: null, matchedBy: 'no country matched' };
 
   // Keep the strong matches. A story mentioning eight countries in passing is
   // not "about" all eight, so only those within range of the best score stay.
@@ -142,8 +151,13 @@ export function matchCountries(title: string, summary?: string | null): MatchRes
   const best = ranked[0]![1];
   const kept = ranked.filter(([, v]) => v >= Math.max(2, best * 0.4)).slice(0, 6);
 
+  // The leading title match, by title score alone; ties break on overall score.
+  const primary =
+    [...titleHits.entries()].sort((a, b) => b[1] - a[1] || (scores.get(b[0]) ?? 0) - (scores.get(a[0]) ?? 0))[0]?.[0] ?? null;
+
   return {
     countries: kept.map(([iso]) => iso),
+    primary: primary && kept.some(([iso]) => iso === primary) ? primary : null,
     matchedBy: kept.map(([iso]) => `${iso}: ${reasons.get(iso)}`).join('; '),
   };
 }

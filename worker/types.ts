@@ -48,6 +48,11 @@ export interface NewsItem {
   sourceType: SourceType;
   /** ISO 3166-1 alpha-2 codes this item was matched to. */
   countries: string[];
+  /**
+   * The leading country matched in the title, or null. Conflict status is
+   * derived from this alone, never from the full country list.
+   */
+  primaryCountry: string | null;
   categories: Category[];
   summary: string | null;
   /** Which matcher rule attached this item to its countries. */
@@ -65,6 +70,8 @@ export interface Story {
   primary: NewsItem;
   items: NewsItem[];
   countries: string[];
+  /** Leading title-matched countries across the cluster's members. */
+  primaryCountries: string[];
   categories: Category[];
   /** Distinct ownership groups covering this story. */
   outletCount: number;

@@ -44,7 +44,7 @@ function toNewsItem(
     ...entry.categories,
     feed.forceCategory ?? '',
   ]);
-  const { countries, matchedBy } = matchCountries(entry.title, summary);
+  const { countries, primary, matchedBy } = matchCountries(entry.title, summary);
 
   const sourceType: SourceType = feed.sourceType === 'tv'
     // A broadcaster video whose title reads as a briefing is filed as a press
@@ -64,6 +64,7 @@ function toNewsItem(
     outlet: feed.outlet,
     sourceType,
     countries,
+    primaryCountry: primary,
     categories: finalCategories,
     summary,
     matchedBy,
@@ -110,7 +111,7 @@ export async function fetchSubreddit(sub: string, opts: FetchOptions = {}): Prom
       if (!e.publishedAt) continue;
       const summary = e.summary ? cleanText(e.summary).slice(0, 300) : null;
       const { categories } = categorize(e.title, summary);
-      const { countries, matchedBy } = matchCountries(e.title, summary);
+      const { countries, primary, matchedBy } = matchCountries(e.title, summary);
       items.push({
         id: hash(e.link),
         title: e.title,
@@ -119,6 +120,7 @@ export async function fetchSubreddit(sub: string, opts: FetchOptions = {}): Prom
         outlet: { domain: `reddit.com/r/${sub}`, name: `r/${sub}`, owner: 'reddit', country: null },
         sourceType: 'reddit',
         countries,
+        primaryCountry: primary,
         categories,
         summary,
         matchedBy,
@@ -177,7 +179,7 @@ export async function fetchGdelt(
       const title = cleanText(a.title);
       if (!title) continue;
       const { categories } = categorize(title, null);
-      const { countries, matchedBy } = matchCountries(title, null);
+      const { countries, primary, matchedBy } = matchCountries(title, null);
       items.push({
         id: hash(a.url),
         title,
@@ -188,6 +190,7 @@ export async function fetchGdelt(
         outlet: resolveOutlet(domain, a.sourcecountry ?? null),
         sourceType: 'news',
         countries,
+        primaryCountry: primary,
         categories,
         summary: null,
         matchedBy,

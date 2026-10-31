@@ -40,6 +40,51 @@ const O = (domain: string, name: string, owner: string, country: string | null):
  * Adding an outlet means adding one entry here plus a probe in the harness.
  */
 export const NEWS_FEEDS: FeedDef[] = [
+  // One outlet publishes many sections, and a single "world" feed misses most
+  // of what it runs. These all resolve to the same Outlet objects, so adding
+  // them widens coverage without inflating the independent-owner count that
+  // the confirmation rule depends on.
+  { id: 'bbc-top', url: 'https://feeds.bbci.co.uk/news/rss.xml', outlet: O('bbc.co.uk', 'BBC News', 'BBC', 'GB'), sourceType: 'news' },
+  { id: 'bbc-africa', url: 'https://feeds.bbci.co.uk/news/world/africa/rss.xml', outlet: O('bbc.co.uk', 'BBC News', 'BBC', 'GB'), sourceType: 'news' },
+  { id: 'bbc-asia', url: 'https://feeds.bbci.co.uk/news/world/asia/rss.xml', outlet: O('bbc.co.uk', 'BBC News', 'BBC', 'GB'), sourceType: 'news' },
+  { id: 'bbc-europe', url: 'https://feeds.bbci.co.uk/news/world/europe/rss.xml', outlet: O('bbc.co.uk', 'BBC News', 'BBC', 'GB'), sourceType: 'news' },
+  { id: 'bbc-mideast', url: 'https://feeds.bbci.co.uk/news/world/middle_east/rss.xml', outlet: O('bbc.co.uk', 'BBC News', 'BBC', 'GB'), sourceType: 'news' },
+  { id: 'bbc-us-canada', url: 'https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml', outlet: O('bbc.co.uk', 'BBC News', 'BBC', 'GB'), sourceType: 'news' },
+  { id: 'bbc-latam', url: 'https://feeds.bbci.co.uk/news/world/latin_america/rss.xml', outlet: O('bbc.co.uk', 'BBC News', 'BBC', 'GB'), sourceType: 'news' },
+  { id: 'bbc-business', url: 'https://feeds.bbci.co.uk/news/business/rss.xml', outlet: O('bbc.co.uk', 'BBC News', 'BBC', 'GB'), sourceType: 'news' },
+  { id: 'bbc-science', url: 'https://feeds.bbci.co.uk/news/science_and_environment/rss.xml', outlet: O('bbc.co.uk', 'BBC News', 'BBC', 'GB'), sourceType: 'news' },
+  { id: 'bbc-politics', url: 'https://feeds.bbci.co.uk/news/politics/rss.xml', outlet: O('bbc.co.uk', 'BBC News', 'BBC', 'GB'), sourceType: 'news' },
+
+  { id: 'guardian-intl', url: 'https://www.theguardian.com/international/rss', outlet: O('theguardian.com', 'The Guardian', 'Guardian Media Group', 'GB'), sourceType: 'news' },
+  { id: 'guardian-mideast', url: 'https://www.theguardian.com/world/middleeast/rss', outlet: O('theguardian.com', 'The Guardian', 'Guardian Media Group', 'GB'), sourceType: 'news' },
+  { id: 'guardian-africa', url: 'https://www.theguardian.com/world/africa/rss', outlet: O('theguardian.com', 'The Guardian', 'Guardian Media Group', 'GB'), sourceType: 'news' },
+  { id: 'guardian-asia', url: 'https://www.theguardian.com/world/asia/rss', outlet: O('theguardian.com', 'The Guardian', 'Guardian Media Group', 'GB'), sourceType: 'news' },
+  { id: 'guardian-americas', url: 'https://www.theguardian.com/world/americas/rss', outlet: O('theguardian.com', 'The Guardian', 'Guardian Media Group', 'GB'), sourceType: 'news' },
+  { id: 'guardian-europe', url: 'https://www.theguardian.com/world/europe-news/rss', outlet: O('theguardian.com', 'The Guardian', 'Guardian Media Group', 'GB'), sourceType: 'news' },
+  { id: 'guardian-business', url: 'https://www.theguardian.com/business/rss', outlet: O('theguardian.com', 'The Guardian', 'Guardian Media Group', 'GB'), sourceType: 'news' },
+  { id: 'guardian-env', url: 'https://www.theguardian.com/environment/rss', outlet: O('theguardian.com', 'The Guardian', 'Guardian Media Group', 'GB'), sourceType: 'news' },
+
+  { id: 'dw-all', url: 'https://rss.dw.com/rdf/rss-en-all', outlet: O('dw.com', 'Deutsche Welle', 'Deutsche Welle', 'DE'), sourceType: 'news' },
+  { id: 'dw-business', url: 'https://rss.dw.com/rdf/rss-en-bus', outlet: O('dw.com', 'Deutsche Welle', 'Deutsche Welle', 'DE'), sourceType: 'news' },
+  { id: 'dw-asia', url: 'https://rss.dw.com/rdf/rss-en-asia', outlet: O('dw.com', 'Deutsche Welle', 'Deutsche Welle', 'DE'), sourceType: 'news' },
+  { id: 'dw-europe', url: 'https://rss.dw.com/rdf/rss-en-eu', outlet: O('dw.com', 'Deutsche Welle', 'Deutsche Welle', 'DE'), sourceType: 'news' },
+
+  { id: 'france24-africa', url: 'https://www.france24.com/en/africa/rss', outlet: O('france24.com', 'France 24', 'France Medias Monde', 'FR'), sourceType: 'news' },
+  { id: 'france24-mideast', url: 'https://www.france24.com/en/middle-east/rss', outlet: O('france24.com', 'France 24', 'France Medias Monde', 'FR'), sourceType: 'news' },
+  { id: 'france24-asia', url: 'https://www.france24.com/en/asia-pacific/rss', outlet: O('france24.com', 'France 24', 'France Medias Monde', 'FR'), sourceType: 'news' },
+  { id: 'france24-americas', url: 'https://www.france24.com/en/americas/rss', outlet: O('france24.com', 'France 24', 'France Medias Monde', 'FR'), sourceType: 'news' },
+  { id: 'france24-europe', url: 'https://www.france24.com/en/europe/rss', outlet: O('france24.com', 'France 24', 'France Medias Monde', 'FR'), sourceType: 'news' },
+
+  { id: 'npr-news', url: 'https://feeds.npr.org/1001/rss.xml', outlet: O('npr.org', 'NPR', 'NPR', 'US'), sourceType: 'news' },
+  { id: 'npr-business', url: 'https://feeds.npr.org/1006/rss.xml', outlet: O('npr.org', 'NPR', 'NPR', 'US'), sourceType: 'news' },
+  { id: 'npr-politics', url: 'https://feeds.npr.org/1014/rss.xml', outlet: O('npr.org', 'NPR', 'NPR', 'US'), sourceType: 'news' },
+
+  // Section ids verified against each feed's own <title>, not assumed.
+  { id: 'scmp-china', url: 'https://www.scmp.com/rss/4/feed', outlet: O('scmp.com', 'South China Morning Post', 'Alibaba Group', 'HK'), sourceType: 'news' },
+  { id: 'scmp-hongkong', url: 'https://www.scmp.com/rss/2/feed', outlet: O('scmp.com', 'South China Morning Post', 'Alibaba Group', 'HK'), sourceType: 'news' },
+  { id: 'scmp-business', url: 'https://www.scmp.com/rss/92/feed', outlet: O('scmp.com', 'South China Morning Post', 'Alibaba Group', 'HK'), sourceType: 'news' },
+  { id: 'scmp-economy', url: 'https://www.scmp.com/rss/12/feed', outlet: O('scmp.com', 'South China Morning Post', 'Alibaba Group', 'HK'), sourceType: 'news' },
+
   { id: 'bbc-world', url: 'https://feeds.bbci.co.uk/news/world/rss.xml', outlet: O('bbc.co.uk', 'BBC News', 'BBC', 'GB'), sourceType: 'news' },
   { id: 'aljazeera-all', url: 'https://www.aljazeera.com/xml/rss/all.xml', outlet: O('aljazeera.com', 'Al Jazeera', 'Al Jazeera Media Network', 'QA'), sourceType: 'news' },
   { id: 'guardian-world', url: 'https://www.theguardian.com/world/rss', outlet: O('theguardian.com', 'The Guardian', 'Guardian Media Group', 'GB'), sourceType: 'news' },
