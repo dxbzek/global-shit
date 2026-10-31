@@ -46,24 +46,30 @@ export type ImagerySource = 'esri' | 'ion' | 'osm' | 'google3d';
 
 export type Status = 'war' | 'conflict' | 'tension' | 'peace' | 'unknown';
 
-/** Status fills. Alpha is low because imagery has to stay readable beneath. */
+/*
+ * Status fills, in the same print tones the interface uses. Alpha stays low
+ * because the imagery has to read through them, and these are deliberately
+ * desaturated: on a black field a saturated fill reads as a glowing overlay
+ * rather than as ink.
+ */
 const STATUS_FILL: Record<Status, Color> = {
-  war: Color.fromCssColorString('#ff3d5e').withAlpha(0.42),
-  conflict: Color.fromCssColorString('#ff8a3d').withAlpha(0.34),
-  tension: Color.fromCssColorString('#ffd23f').withAlpha(0.24),
-  peace: Color.fromCssColorString('#35d07f').withAlpha(0.12),
-  unknown: Color.fromCssColorString('#4d5a72').withAlpha(0.0),
+  war: Color.fromCssColorString('#c8372d').withAlpha(0.46),
+  conflict: Color.fromCssColorString('#b86b2e').withAlpha(0.38),
+  tension: Color.fromCssColorString('#b9972f').withAlpha(0.26),
+  peace: Color.fromCssColorString('#4f7a54').withAlpha(0.14),
+  unknown: Color.fromCssColorString('#55504a').withAlpha(0.0),
 };
 
 const STATUS_OUTLINE: Record<Status, Color> = {
-  war: Color.fromCssColorString('#ff6b84'),
-  conflict: Color.fromCssColorString('#ffa468'),
-  tension: Color.fromCssColorString('#ffdf7a'),
-  peace: Color.fromCssColorString('#5fdd9b'),
-  unknown: Color.fromCssColorString('#8ea4c8').withAlpha(0.3),
+  war: Color.fromCssColorString('#d9574c'),
+  conflict: Color.fromCssColorString('#c98753'),
+  tension: Color.fromCssColorString('#cbad53'),
+  peace: Color.fromCssColorString('#6d9672'),
+  unknown: Color.fromCssColorString('#ede8e0').withAlpha(0.22),
 };
 
-const SELECTED_OUTLINE = Color.fromCssColorString('#5ad1f5');
+/* Selection is paper-white, not a colour: the same inversion the chips use. */
+const SELECTED_OUTLINE = Color.fromCssColorString('#ede8e0');
 
 export interface GlobeOptions {
   container: HTMLElement;
@@ -138,7 +144,7 @@ export class Globe {
 
     const { scene, clock } = this.viewer;
     scene.backgroundColor = Color.TRANSPARENT;
-    scene.globe.baseColor = Color.fromCssColorString('#0a1220');
+    scene.globe.baseColor = Color.fromCssColorString('#0d0c0a');
 
     // Atmosphere. The soft limb glow is the single most recognisable thing
     // about a satellite globe, so it is tuned up rather than left default.
@@ -146,12 +152,14 @@ export class Globe {
     const sky = scene.skyAtmosphere;
     if (sky) {
       sky.show = true;
-      sky.brightnessShift = 0.18;
-      sky.saturationShift = 0.1;
-      sky.hueShift = -0.01;
+      // Desaturated and dimmer: on a true-black field the default blue limb
+      // glow is the loudest thing on screen, which is not what it should be.
+      sky.brightnessShift = 0.04;
+      sky.saturationShift = -0.35;
+      sky.hueShift = 0.0;
     }
     scene.globe.showGroundAtmosphere = true;
-    scene.globe.atmosphereBrightnessShift = 0.1;
+    scene.globe.atmosphereBrightnessShift = 0.0;
     scene.fog.enabled = true;
     scene.fog.density = 0.00012;
 
@@ -301,8 +309,11 @@ export class Globe {
       const isSelected = this.selected === iso2;
       if (!entity.polygon) continue;
 
+      // Selection is carried by the outline alone. Filling it paper-white
+      // flattened the country into a grey blob and hid the imagery beneath,
+      // which is the one thing the globe is there to show.
       entity.polygon.material = new ColorMaterialProperty(
-        isSelected ? SELECTED_OUTLINE.withAlpha(0.3) : STATUS_FILL[status],
+        isSelected ? STATUS_FILL[status].withAlpha(Math.max(0.1, STATUS_FILL[status].alpha)) : STATUS_FILL[status],
       );
       entity.polygon.outline = new ConstantProperty(true);
       entity.polygon.outlineColor = new ConstantProperty(
@@ -466,10 +477,10 @@ export class Globe {
     targets.forEach((target, i) => {
       const colour =
         target.kind === 'adversary'
-          ? Color.fromCssColorString('#ff3d5e')
+          ? Color.fromCssColorString('#c8372d')
           : target.kind === 'pact'
-            ? Color.fromCssColorString('#5ad1f5')
-            : Color.fromCssColorString('#8ea4c8');
+            ? Color.fromCssColorString('#ede8e0')
+            : Color.fromCssColorString('#9a938a');
 
       // Stagger each line so they appear to fan out from the country.
       const delay = this.reducedMotion ? 0 : i * 55;
@@ -490,7 +501,7 @@ export class Globe {
           width: target.kind === 'adversary' ? 2.4 : 1.8,
           material: new PolylineGlowMaterialProperty({
             color: colour.withAlpha(target.kind === 'relation' ? 0.5 : 0.85),
-            glowPower: 0.22,
+            glowPower: 0.08,
             taperPower: 0.6,
           }),
           clampToGround: false,
@@ -516,12 +527,12 @@ export class Globe {
     for (const pin of pins) {
       const colour =
         pin.status === 'war'
-          ? Color.fromCssColorString('#ff3d5e')
+          ? Color.fromCssColorString('#c8372d')
           : pin.status === 'conflict'
-            ? Color.fromCssColorString('#ff8a3d')
+            ? Color.fromCssColorString('#b86b2e')
             : pin.status === 'tension'
-              ? Color.fromCssColorString('#ffd23f')
-              : Color.fromCssColorString('#5ad1f5');
+              ? Color.fromCssColorString('#b9972f')
+              : Color.fromCssColorString('#ede8e0');
 
       const entity = this.viewer.entities.add({
         position: Cartesian3.fromDegrees(pin.centroid[0], pin.centroid[1], 12_000),
@@ -531,7 +542,7 @@ export class Globe {
             ? 7
             : new CallbackProperty(() => 6 + 3 * this.pulseAlpha(1), false) as unknown as number,
           color: colour.withAlpha(0.9),
-          outlineColor: Color.fromCssColorString('#04060c').withAlpha(0.7),
+          outlineColor: Color.fromCssColorString('#000000').withAlpha(0.75),
           outlineWidth: 2,
           heightReference: HeightReference.NONE,
           // Pins shrink with distance so a zoomed-out globe stays legible.
@@ -540,8 +551,8 @@ export class Globe {
         },
         label: {
           text: pin.count > 1 ? String(pin.count) : '',
-          font: '600 11px Inter, sans-serif',
-          fillColor: Color.fromCssColorString('#04060c'),
+          font: '600 11px Archivo, sans-serif',
+          fillColor: Color.fromCssColorString('#000000'),
           style: LabelStyle.FILL,
           verticalOrigin: VerticalOrigin.CENTER,
           pixelOffset: new Cartesian2(0, 0),
