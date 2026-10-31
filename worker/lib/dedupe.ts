@@ -84,6 +84,24 @@ export function clusterStories(items: NewsItem[]): Story[] {
   const clusters: Cluster[] = [];
   const byExactTitle = new Map<string, Cluster>();
 
+  /*
+   * Inverted index from token to the clusters containing it.
+   *
+   * Comparing each item against every open cluster is O(items x clusters),
+   * which was fine at a few hundred items and is not at several thousand. Two
+   * headlines cannot reach the merge threshold without sharing at least one
+   * significant token, so only clusters that share a token are candidates.
+   * That turns the scan into roughly linear work.
+   */
+  const index = new Map<string, Set<Cluster>>();
+  const addToIndex = (cluster: Cluster, tokenSet: Iterable<string>) => {
+    for (const token of tokenSet) {
+      let bucket = index.get(token);
+      if (!bucket) index.set(token, (bucket = new Set()));
+      bucket.add(cluster);
+    }
+  };
+
   for (const item of sorted) {
     const key = titleKey(item.title);
     const exact = byExactTitle.get(key);
@@ -95,9 +113,17 @@ export function clusterStories(items: NewsItem[]): Story[] {
     const tk = new Set(tokens(item.title));
     const ms = Date.parse(item.publishedAt);
 
+    // Candidates: clusters sharing at least one token with this headline.
+    const candidates = new Set<Cluster>();
+    for (const token of tk) {
+      const bucket = index.get(token);
+      if (!bucket) continue;
+      for (const cluster of bucket) candidates.add(cluster);
+    }
+
     let best: Cluster | null = null;
     let bestScore = 0;
-    for (const c of clusters) {
+    for (const c of candidates) {
       if (Math.abs(c.newestMs - ms) > MERGE_WINDOW_MS) continue;
       const score = similarity(tk, c.tokens);
       if (score > bestScore) {
@@ -108,14 +134,23 @@ export function clusterStories(items: NewsItem[]): Story[] {
 
     if (best && bestScore >= MERGE_THRESHOLD) {
       best.members.push(item);
-      // Widen the cluster's vocabulary so later variants still match.
-      for (const t of tk) best.tokens.add(t);
+      // Widen the cluster's vocabulary so later variants still match, and
+      // index the new tokens so they can be found by it.
+      const added: string[] = [];
+      for (const t of tk) {
+        if (!best.tokens.has(t)) {
+          best.tokens.add(t);
+          added.push(t);
+        }
+      }
+      addToIndex(best, added);
       continue;
     }
 
     const fresh: Cluster = { members: [item], tokens: tk, newestMs: ms };
     clusters.push(fresh);
     byExactTitle.set(key, fresh);
+    addToIndex(fresh, tk);
   }
 
   return clusters.map(toStory);
@@ -145,6 +180,9 @@ function toStory(cluster: { members: NewsItem[] }): Story {
   const confidence: Story['confidence'] = newsOwners.size >= 2 ? 'confirmed' : 'single-source';
 
   const countries = [...new Set(members.flatMap((m) => m.countries))];
+  const primaryCountries = [
+    ...new Set(members.map((m) => m.primaryCountry).filter((c): c is string => c !== null)),
+  ];
   const categories = [...new Set(members.flatMap((m) => m.categories))];
 
   /*
@@ -162,6 +200,7 @@ function toStory(cluster: { members: NewsItem[] }): Story {
     primary,
     items: [...members].sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt)),
     countries,
+    primaryCountries,
     categories,
     outletCount: newsOwners.size,
     latestAt: latest.publishedAt,

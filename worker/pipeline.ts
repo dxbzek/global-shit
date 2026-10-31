@@ -32,20 +32,29 @@ import { COUNTRY_LIST } from './lib/match';
  * never desynchronises the rotation.
  */
 
-/** How many shards the rotating feeds are spread across. */
-const SHARD_COUNT = 3;
+/**
+ * How many shards the rotating feeds are spread across.
+ *
+ * Raised with the feed list: at 43 news feeds, three shards would fetch ~14
+ * upstreams in one tick. Five keeps each tick to a handful of subrequests
+ * while still polling every feed about every five minutes.
+ */
+const SHARD_COUNT = 5;
 
 /** Items older than this are dropped at rollup, bounding cache size. */
 const RETAIN_MS = 7 * 24 * 60 * 60 * 1000;
 
-/** Hard ceiling on stored items, as a second guard on KV's 25 MB value limit. */
-const MAX_ITEMS = 4000;
+/**
+ * Hard ceiling on stored items, as a second guard on KV's 25 MB value limit.
+ * Raised with the feed list; at roughly 400 bytes an item this is a few MB.
+ */
+const MAX_ITEMS = 8000;
 
 /**
  * Feeds polled on every tick. These are the fastest-moving of the verified
  * feeds and they tolerate a once-a-minute poll; the rest rotate by shard.
  */
-const HOT_FEED_IDS = new Set(['bbc-world', 'aljazeera-all', 'guardian-world']);
+const HOT_FEED_IDS = new Set(['bbc-top', 'aljazeera-all', 'guardian-intl']);
 
 /** GDELT queries, rotated one per tick so the API is hit at most once a minute. */
 const GDELT_QUERIES = [

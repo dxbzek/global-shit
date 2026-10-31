@@ -121,6 +121,21 @@ export const ACTIVE_HOSTILITY_TERMS = [
 ];
 
 /**
+ * Headlines that list many countries at once. A digest naming a dozen
+ * places is not evidence about any one of them.
+ */
+const DIGEST = /\bin brief\b|\bbriefing\b|\broundup\b|\bround-up\b|\bwhat we know\b|\blive updates?\b|\bnews in brief\b|\bthis week in\b|\bmorning mail\b/i;
+
+/**
+ * Civil-unrest context. "Clashes" covers both a border firefight and scuffles
+ * at a demonstration, and the second is not armed conflict; a march in Paris
+ * was enough to colour France as a war zone. When the only hostility term is
+ * one of these and the headline is plainly about a protest, it does not count.
+ */
+const PROTEST = /\bprotest|\bmarch(es|ing)?\b|\bdemonstrat|\brally\b|\brallies\b|\bpicket|\bstrike action\b/i;
+const UNREST_ONLY = new Set(['clashes', 'clash']);
+
+/**
  * Active-hostility terms found in a HEADLINE.
  *
  * Headline only, not the summary: a country genuinely at war appears in the
@@ -129,10 +144,17 @@ export const ACTIVE_HOSTILITY_TERMS = [
  * American political movement count as conflict evidence.
  */
 export function activeHostilityTerms(title: string): string[] {
+  if (DIGEST.test(title)) return [];
+
   const text = ` ${title.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ')} `;
-  return ACTIVE_HOSTILITY_TERMS.filter(
+  const hits = ACTIVE_HOSTILITY_TERMS.filter(
     (term) => text.includes(` ${term} `) || text.includes(` ${term}s `),
   );
+
+  // Civil unrest reported only as "clashes" is not armed conflict.
+  if (hits.length && hits.every((h) => UNREST_ONLY.has(h)) && PROTEST.test(title)) return [];
+
+  return hits;
 }
 
 /**
