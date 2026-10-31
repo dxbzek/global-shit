@@ -7,16 +7,30 @@ import { viteStaticCopy } from 'vite-plugin-static-copy';
  * bundle and CESIUM_BASE_URL is pointed at them. Without this the globe loads
  * but terrain decoding and the atmosphere shaders fail at runtime.
  */
-const CESIUM_BASE = '/cesium';
+
+/**
+ * Where the bundle will be served from.
+ *
+ * The worker serves the app at the origin root, so '/' is correct there and
+ * stays the default. The static preview is served from a sub-path, and an
+ * absolute '/assets/...' resolves against the host root rather than the
+ * sub-path, so every stylesheet, script and data file 404s and the page
+ * renders as unstyled HTML. Building it with BUILD_BASE=./ makes every
+ * reference relative, which works in both places.
+ */
+const BASE = process.env.BUILD_BASE ?? '/';
+const CESIUM_BASE = `${BASE.endsWith('/') ? BASE : `${BASE}/`}cesium`;
+const OUT_DIR = process.env.BUILD_OUTDIR ?? '../dist';
 
 export default defineConfig({
   root: 'web',
   publicDir: 'public',
+  base: BASE,
   define: {
     CESIUM_BASE_URL: JSON.stringify(CESIUM_BASE),
   },
   build: {
-    outDir: '../dist',
+    outDir: OUT_DIR,
     emptyOutDir: true,
     // Cesium is large; the warning is expected and not worth suppressing work.
     chunkSizeWarningLimit: 4096,

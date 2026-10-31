@@ -13,18 +13,13 @@
  *   node scripts/build-preview.mjs [apiBase] [outDir]
  */
 
-import { mkdirSync, writeFileSync, readFileSync, cpSync, rmSync, existsSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
-import { argv, exit } from 'node:process';
+import { argv, exit, env } from 'node:process';
 
 const API = argv[2] ?? 'http://127.0.0.1:8787';
 const OUT = resolve(argv[3] ?? 'preview');
-const DIST = resolve('dist');
-
-if (!existsSync(DIST)) {
-  console.error('dist/ not found. Run `npm run build` first.');
-  exit(1);
-}
 
 const get = async (path) => {
   const res = await fetch(`${API}${path}`, { headers: { accept: 'application/json' } });
@@ -44,8 +39,20 @@ console.log(`Capturing ${API} -> ${OUT}`);
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
 
-// The whole build, then the snapshot on top of it.
-cpSync(DIST, OUT, { recursive: true });
+/*
+ * Built here rather than copied from dist/, and built with a relative base.
+ *
+ * dist/ is built for the worker, which serves the app at the origin root, so
+ * it references '/assets/...'. A preview is served from a sub-path, where
+ * those absolute paths resolve against the host root instead and every
+ * stylesheet, script and data file 404s - the page then renders as unstyled
+ * HTML with no globe, which is exactly what shipping the copied dist did.
+ */
+console.log('Building with a relative base...');
+execFileSync('npx', ['vite', 'build'], {
+  stdio: 'inherit',
+  env: { ...env, BUILD_BASE: './', BUILD_OUTDIR: OUT },
+});
 
 const meta = await get('/api/meta');
 const countries = await get('/api/countries?sort=status');
@@ -342,7 +349,7 @@ const indexPath = resolve(OUT, 'index.html');
 let html = readFileSync(indexPath, 'utf8');
 
 // The shim must run before the app module, or the app's first fetch escapes it.
-html = html.replace('<script type="module"', '<script src="/preview-shim.js"></script>\n    <script type="module"');
+html = html.replace('<script type="module"', '<script src="./preview-shim.js"></script>\n    <script type="module"');
 html = html.replace('</body>', `${banner}  </body>`);
 html = html.replace('<title>', '<title>Preview: ');
 writeFileSync(indexPath, html);

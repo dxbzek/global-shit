@@ -278,9 +278,13 @@ export class Globe {
   /** Loads country polygons and paints them from the status map. */
   async loadCountries(statuses: Map<string, Status>): Promise<void> {
     this.statuses = statuses;
-    const url = this.opts.lowDetail
-      ? '/data/countries-110m.geojson'
-      : '/data/countries-50m.geojson';
+    /*
+     * Resolved against the document rather than the origin root. An absolute
+     * '/data/...' only works when the app is served at the root; under any
+     * sub-path it 404s and the globe loads with no countries on it.
+     */
+    const file = this.opts.lowDetail ? 'countries-110m.geojson' : 'countries-50m.geojson';
+    const url = new URL(`data/${file}`, document.baseURI).href;
 
     const ds = await GeoJsonDataSource.load(url, {
       clampToGround: false,
