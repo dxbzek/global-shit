@@ -1,6 +1,7 @@
 import type { ConflictRecord, ConflictStatus, Provenance, Story } from '../types';
 import { independentOwners } from './dedupe';
 import { COUNTRY_LIST } from './countries.generated';
+import { activeHostilityTerms } from './categorize';
 
 /**
  * Derives each country's conflict status.
@@ -22,12 +23,29 @@ import { COUNTRY_LIST } from './countries.generated';
 const CONFLICT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
- * How many confirmed conflict stories separate "war" from lesser states.
- * These are presentation bands over the evidence, not claims of their own:
- * the UI always shows the underlying count and the outlets.
+ * Bands over the evidence, not claims of their own.
+ *
+ * These measure how widely and how heavily independent outlets are reporting
+ * active hostilities, which is evidence strength - not a measurement of a
+ * war's intensity, which this app cannot observe. The UI always shows the
+ * underlying outlet count and the stories behind a band.
+ *
+ * Two independently owned outlets is the floor for any status at all, which
+ * is the rule as specified. In live data that floor is what separates genuine
+ * conflict reporting from metaphor: "fighting for its economic life" and
+ * 'coup' in scare quotes each appeared in exactly one outlet.
  */
-const WAR_STORY_FLOOR = 6;
-const CONFLICT_STORY_FLOOR = 2;
+const WAR_OWNER_FLOOR = 4;
+const WAR_STORY_FLOOR = 8;
+const CONFLICT_STORY_FLOOR = 3;
+const MIN_INDEPENDENT_OWNERS = 2;
+
+/**
+ * A country named beyond this position in a story's match list is a passing
+ * mention, not where the fighting is. "Russia's presence divides G20
+ * ministers" matches five countries; only the first two are about Russia.
+ */
+const LEADING_MATCH_SLOTS = 2;
 
 /** Deaths in the dataset window that mark a conflict as a war. */
 const WAR_DEATH_FLOOR = 1000;
@@ -85,56 +103,88 @@ export function deriveStatuses(input: StatusInput): Map<string, StatusResult> {
     });
   }
 
-  // --- Pass 2: the two-independent-outlet fallback -------------------------
+  /*
+   * --- Pass 2: the two-independent-outlet rule --------------------------
+   *
+   * The rule as specified is that at least two independent outlets support
+   * the status. An earlier version required two independent outlets on the
+   * *same* clustered story, and then two such stories; that is a far higher
+   * bar than asked for, and with the working feed list it produced a status
+   * for no country at all - every country on the globe read "No data".
+   *
+   * What counts here is distinct independently owned outlets reporting
+   * active hostilities involving the country, across the window. A story
+   * qualifies only when its HEADLINE carries an active-hostility term and the
+   * country is a leading match, so arms sales, defence policy, war history
+   * and political metaphor do not colour a country as a war zone.
+   */
   const cutoff = Date.now() - CONFLICT_WINDOW_MS;
-  const perCountry = new Map<string, Story[]>();
+
+  interface Evidence {
+    owners: Set<string>;
+    stories: Story[];
+    terms: Set<string>;
+  }
+  const perCountry = new Map<string, Evidence>();
 
   for (const story of stories) {
-    if (!story.categories.includes('war')) continue;
     if (Date.parse(story.latestAt) < cutoff) continue;
-    // Only confirmed stories can establish a status. A single outlet, or a
-    // Reddit thread, is never enough.
-    if (story.confidence !== 'confirmed') continue;
-    for (const iso2 of story.countries) {
-      let list = perCountry.get(iso2);
-      if (!list) perCountry.set(iso2, (list = []));
-      list.push(story);
+
+    const terms = activeHostilityTerms(story.title);
+    if (!terms.length) continue;
+
+    const owners = independentOwners(story);
+    if (!owners.length) continue;
+
+    for (const iso2 of story.countries.slice(0, LEADING_MATCH_SLOTS)) {
+      let ev = perCountry.get(iso2);
+      if (!ev) perCountry.set(iso2, (ev = { owners: new Set(), stories: [], terms: new Set() }));
+      for (const owner of owners) ev.owners.add(owner);
+      for (const term of terms) ev.terms.add(term);
+      ev.stories.push(story);
     }
   }
 
-  for (const [iso2, matched] of perCountry) {
+  for (const [iso2, ev] of perCountry) {
     const existing = out.get(iso2);
     if (existing?.basis === 'dataset') {
-      // Keep the dataset verdict, but record the reporting alongside it.
-      existing.conflictStories = matched.length;
+      // Keep the dataset verdict; record the reporting beside it.
+      existing.conflictStories = ev.stories.length;
       continue;
     }
 
-    const owners = new Set(matched.flatMap(independentOwners));
-    if (owners.size < 2) continue;
+    if (ev.owners.size < MIN_INDEPENDENT_OWNERS) continue;
 
     const status: ConflictStatus =
-      matched.length >= WAR_STORY_FLOOR
+      ev.owners.size >= WAR_OWNER_FLOOR && ev.stories.length >= WAR_STORY_FLOOR
         ? 'war'
-        : matched.length >= CONFLICT_STORY_FLOOR
+        : ev.stories.length >= CONFLICT_STORY_FLOOR
           ? 'conflict'
           : 'tension';
+
+    const outletList = [...ev.owners].slice(0, 4).join(', ');
+    const termList = [...ev.terms].slice(0, 4).join(', ');
 
     out.set(iso2, {
       iso2,
       status,
       basis: 'two-outlet',
-      evidence: matched.slice(0, 8).map((s) => ({
-        source: `${s.primary.outlet.name} (+${Math.max(0, s.outletCount - 1)} more)`,
-        url: s.primary.url,
-        retrievedAt: s.latestAt,
-      })),
+      evidence: ev.stories
+        .sort((a, b) => Date.parse(b.latestAt) - Date.parse(a.latestAt))
+        .slice(0, 8)
+        .map((story) => ({
+          source: `${story.primary.outlet.name}: ${story.title}`,
+          url: story.primary.url,
+          retrievedAt: story.latestAt,
+        })),
       reason:
-        `No conflict-dataset row. ${matched.length} confirmed conflict ` +
-        `${matched.length === 1 ? 'story' : 'stories'} in the last 7 days across ` +
-        `${owners.size} independently owned outlets (${[...owners].slice(0, 4).join(', ')}` +
-        `${owners.size > 4 ? ', and others' : ''}).`,
-      conflictStories: matched.length,
+        `No conflict-dataset row. ${ev.owners.size} independently owned outlets ` +
+        `(${outletList}${ev.owners.size > 4 ? ', and others' : ''}) reported active ` +
+        `hostilities involving this country in ${ev.stories.length} ` +
+        `${ev.stories.length === 1 ? 'story' : 'stories'} over the last 7 days, on terms ` +
+        `including "${termList}". This reflects how widely the fighting is being ` +
+        `reported, not a measurement of its scale.`,
+      conflictStories: ev.stories.length,
     });
   }
 
@@ -168,35 +218,61 @@ export function deriveStatuses(input: StatusInput): Map<string, StatusResult> {
  */
 export function deriveTension(stories: Story[], already: Map<string, StatusResult>): void {
   const cutoff = Date.now() - CONFLICT_WINDOW_MS;
-  const counts = new Map<string, Set<string>>();
+
+  /*
+   * Friction named in a headline, not routine politics. The same two-outlet
+   * rule applies, and for the same reason: a single outlet's framing of a
+   * disagreement as a "standoff" is not evidence that one exists.
+   *
+   * This counts distinct owners across the country's friction stories rather
+   * than requiring two owners on one story - the stricter reading produced a
+   * tension status for no country at all.
+   */
+  const FRICTION =
+    /\bsanction|\btension|\bdispute|\bstandoff|\bstand-off|\bultimatum|\bexpel|recall(ed)? (its )?ambassador|\bairspace (violation|incursion)|\bincursion|\bmobilis|\bmobiliz|war of words|cut ties|sever(ed)? (diplomatic )?(ties|relations)|border (clash|dispute|closure)/i;
+
+  interface Friction {
+    owners: Set<string>;
+    stories: Story[];
+  }
+  const counts = new Map<string, Friction>();
 
   for (const story of stories) {
     if (Date.parse(story.latestAt) < cutoff) continue;
-    if (story.confidence !== 'confirmed') continue;
-    const tense = story.categories.includes('war') || story.categories.includes('politics');
-    if (!tense) continue;
-    // Only headlines naming friction, not routine politics.
-    if (!/sanction|tension|dispute|standoff|stand-off|border|threat|ultimatum|expel|recall(ed)? (its )?ambassador|airspace|incursion|mobilis|mobiliz|war of words|cut ties|sever(ed)? (diplomatic )?(ties|relations)/i.test(story.title)) {
-      continue;
-    }
-    for (const iso2 of story.countries) {
-      if (already.get(iso2)) continue;
-      let set = counts.get(iso2);
-      if (!set) counts.set(iso2, (set = new Set()));
-      for (const owner of independentOwners(story)) set.add(owner);
+    if (!FRICTION.test(story.title)) continue;
+
+    const owners = independentOwners(story);
+    if (!owners.length) continue;
+
+    for (const iso2 of story.countries.slice(0, LEADING_MATCH_SLOTS)) {
+      // A country that already has a conflict status keeps it; tension is
+      // only for countries with friction and no fighting.
+      if (already.has(iso2)) continue;
+      let f = counts.get(iso2);
+      if (!f) counts.set(iso2, (f = { owners: new Set(), stories: [] }));
+      for (const owner of owners) f.owners.add(owner);
+      f.stories.push(story);
     }
   }
 
-  for (const [iso2, owners] of counts) {
-    if (owners.size < 2 || already.has(iso2)) continue;
+  for (const [iso2, f] of counts) {
+    if (f.owners.size < MIN_INDEPENDENT_OWNERS || already.has(iso2)) continue;
     already.set(iso2, {
       iso2,
       status: 'tension',
       basis: 'two-outlet',
-      evidence: [],
+      evidence: f.stories
+        .sort((a, b) => Date.parse(b.latestAt) - Date.parse(a.latestAt))
+        .slice(0, 6)
+        .map((story) => ({
+          source: `${story.primary.outlet.name}: ${story.title}`,
+          url: story.primary.url,
+          retrievedAt: story.latestAt,
+        })),
       reason:
-        `No conflict evidence. ${owners.size} independently owned outlets reported ` +
-        `diplomatic or border friction in the last 7 days.`,
+        `No reporting of active hostilities. ${f.owners.size} independently owned outlets ` +
+        `(${[...f.owners].slice(0, 3).join(', ')}) reported diplomatic or border friction ` +
+        `in ${f.stories.length} ${f.stories.length === 1 ? 'story' : 'stories'} over the last 7 days.`,
       conflictStories: 0,
     });
   }
