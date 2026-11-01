@@ -1,7 +1,8 @@
 import type { ConflictRecord, ConflictStatus, Provenance, Story } from '../types';
 import { independentOwners } from './dedupe';
 import { COUNTRY_LIST } from './countries.generated';
-import { activeHostilityTerms } from './categorize';
+import { activeHostilityTerms, hostilityOwnerPhrases, SUPRANATIONAL } from './categorize';
+import { findCountry } from './match';
 
 /**
  * Derives each country's conflict status.
@@ -37,7 +38,14 @@ const CONFLICT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
  */
 const WAR_OWNER_FLOOR = 4;
 const WAR_STORY_FLOOR = 8;
-const CONFLICT_STORY_FLOOR = 3;
+/*
+ * Two independently owned outlets reporting active hostilities is the bar, as
+ * specified. An extra third-story requirement sat on top of it and was
+ * demoting real wars: Sudan (Guardian on paramilitary drone strikes, BBC on
+ * hospitals being targeted) and Yemen (UN News, Guardian on besieged Taiz)
+ * each had two independent owners and were being shown as mere "tension".
+ */
+const CONFLICT_STORY_FLOOR = 2;
 const MIN_INDEPENDENT_OWNERS = 2;
 
 /*
@@ -138,7 +146,42 @@ export function deriveStatuses(input: StatusInput): Map<string, StatusResult> {
     const owners = independentOwners(story);
     if (!owners.length) continue;
 
+    /*
+     * A war named in a headline often belongs somewhere else, and the country
+     * the headline leads with is a bystander. "Chinese firm agrees to build
+     * rail tunnels in Qatar amid Iran war" was making Qatar a conflict zone,
+     * and "Tunisians drawn into Russia's war in Ukraine" did the same to
+     * Tunisia. Where the headline binds the hostilities to a named place, the
+     * country must be one of those places.
+     */
+    const phrases = hostilityOwnerPhrases(story.title);
+    let attributedTo: Set<string> | null = null;
+    if (phrases.length) {
+      /*
+       * Resolved by exact name, not by the headline matcher. The matcher
+       * holds "iran" and "china" as ambiguous words that need supporting
+       * context, which is right for a headline and wrong here: an owner
+       * phrase is already an explicit place name, and leaving them
+       * unresolved let "rail tunnels in Qatar amid Iran war" through.
+       */
+      const resolved = new Set(
+        phrases
+          .map((phrase) => findCountry(phrase.replace(/['\u2019]s$/, '').trim())?.iso2)
+          .filter((iso2): iso2 is string => Boolean(iso2)),
+      );
+      if (resolved.size) {
+        // The headline names the countries whose war this is.
+        attributedTo = resolved;
+      } else if (phrases.some((phrase) => SUPRANATIONAL.test(phrase.trim()))) {
+        // A war belonging to a whole region is evidence about no one country.
+        continue;
+      }
+      // Otherwise the place is unresolvable and usually sub-national (Tigray,
+      // Darfur), so it does not override the country the headline is about.
+    }
+
     for (const iso2 of story.primaryCountries) {
+      if (attributedTo && !attributedTo.has(iso2)) continue;
       let ev = perCountry.get(iso2);
       if (!ev) perCountry.set(iso2, (ev = { owners: new Set(), stories: [], terms: new Set() }));
       for (const owner of owners) ev.owners.add(owner);
