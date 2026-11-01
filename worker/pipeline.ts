@@ -165,6 +165,24 @@ async function mergeRaw(env: Env, incoming: NewsItem[], health: SourceHealth[]):
 
   for (const h of health) store.health[h.id] = h;
 
+  /*
+   * Drop health lines for sources that no longer exist. The store is keyed by
+   * source id and nothing pruned it, so a feed removed from the registry kept
+   * reporting its last failure forever: three YouTube channels that had been
+   * deleted were still listed as down, which reads as a broken app rather
+   * than a shorter source list.
+   */
+  const live = new Set<string>([
+    ...newsFeeds().map((f) => f.id),
+    ...tvFeeds().map((f) => f.id),
+    ...SUBREDDITS.map((sub) => `reddit-${sub.toLowerCase()}`),
+    'gdelt-doc',
+    'unknown',
+  ]);
+  for (const id of Object.keys(store.health)) {
+    if (!live.has(id)) delete store.health[id];
+  }
+
   await writeCached(env, KEYS.shard(0), { items, health: store.health }, TTL.rollup, health);
 }
 
