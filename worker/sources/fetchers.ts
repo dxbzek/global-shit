@@ -78,6 +78,8 @@ export async function fetchFeed(feed: FeedDef, opts: FetchOptions = {}): Promise
     const xml = await fetchText(feed.url, {
       ...opts,
       headers: { accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml, */*' },
+      ...(feed.retries === undefined ? {} : { retries: feed.retries }),
+      ...(feed.retryStatuses === undefined ? {} : { retryStatuses: feed.retryStatuses }),
     });
     const items = parseFeed(xml)
       .map((e) => toNewsItem(e, feed))

@@ -14,6 +14,13 @@ export interface FeedDef {
   sourceType: 'news' | 'tv';
   /** Feeds that only ever carry one topic pre-tag their items. */
   forceCategory?: string;
+  /**
+   * Transient-failure retries for this feed. Only set where a source was
+   * measured to be intermittent; a feed that is down should fail fast.
+   */
+  retries?: number;
+  /** Statuses this feed treats as transient, where they differ from default. */
+  retryStatuses?: readonly number[];
 }
 
 const O = (domain: string, name: string, owner: string, country: string | null): Outlet => ({
@@ -99,12 +106,47 @@ export const NEWS_FEEDS: FeedDef[] = [
  * Broadcaster channels. These supply titles and links to video only, never
  * transcripts or claims, so they are listed as press/TV records.
  */
+/*
+ * Broadcast channels, carried as titles and links only.
+ *
+ * YouTube's feed endpoint is heavily intermittent from a datacenter address:
+ * the same channel and the same honest User-Agent returned 404 and 200 about
+ * evenly across repeated probes, so every entry here retries, and 404 counts
+ * as transient for these feeds alone.
+ *
+ * Only channels whose identity was confirmed from the feed's OWN <title> are
+ * listed. Removed after probing:
+ *
+ *   Al Jazeera English  the channel page embeds several channel ids and the
+ *                       two candidates it yielded never returned a feed, so
+ *                       the id could not be confirmed. Al Jazeera text
+ *                       reporting is already carried by aljazeera-all.
+ *   DW News             UCbbS1GE942k3UVqpLklyhIA does return a feed, but its
+ *                       title is "DW Podcasts", not DW News. It was labelled
+ *                       DW News here, which was wrong. DW text reporting is
+ *                       carried by the dw-* feeds.
+ *   United Nations      no channel id could be resolved from the handle page
+ *                       across repeated attempts. UN News text is carried by
+ *                       the un-news feed.
+ */
 export const TV_FEEDS: FeedDef[] = [
-  { id: 'yt-bbcnews', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UC16niRr50-MSBwiO3YDb3RA', outlet: O('youtube.com/@BBCNews', 'BBC News (YouTube)', 'BBC', 'GB'), sourceType: 'tv' },
-  { id: 'yt-aljazeera', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCNye-wNBqNL5ZzHSJj3l8Bg', outlet: O('youtube.com/@AlJazeeraEnglish', 'Al Jazeera English (YouTube)', 'Al Jazeera Media Network', 'QA'), sourceType: 'tv' },
-  { id: 'yt-dw', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCbbS1GE942k3UVqpLklyhIA', outlet: O('youtube.com/@DWNews', 'DW News (YouTube)', 'Deutsche Welle', 'DE'), sourceType: 'tv' },
-  { id: 'yt-un', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UC07-dOwgza1IguKA86jqxNA', outlet: O('youtube.com/@unitednations', 'United Nations (YouTube)', 'United Nations', null), sourceType: 'tv' },
-  { id: 'yt-whitehouse', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCYxRlFDqcWM4y7FfpiAN3KQ', outlet: O('youtube.com/@WhiteHouse', 'The White House (YouTube)', 'United States Government', 'US'), sourceType: 'tv' },
+  {
+    id: 'yt-bbcnews',
+    url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UC16niRr50-MSBwiO3YDb3RA',
+    outlet: O('youtube.com/@BBCNews', 'BBC News (YouTube)', 'BBC', 'GB'),
+    sourceType: 'tv',
+    retries: 4,
+    retryStatuses: [0, 404, 500, 502, 503, 504],
+  },
+  {
+    id: 'yt-whitehouse',
+    url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCYxRlFDqcWM4y7FfpiAN3KQ',
+    outlet: O('youtube.com/@WhiteHouse', 'The White House (YouTube)', 'United States Government', 'US'),
+    sourceType: 'tv',
+    forceCategory: 'press',
+    retries: 4,
+    retryStatuses: [0, 404, 500, 502, 503, 504],
+  },
 ];
 
 /**

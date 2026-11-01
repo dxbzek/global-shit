@@ -112,7 +112,7 @@ export const ACTIVE_HOSTILITY_TERMS = [
   'war', 'warfare', 'invasion', 'invade', 'invaded', 'invading', 'offensive',
   'airstrike', 'air strike', 'shelling', 'shelled', 'bombardment', 'bombing',
   'bombed', 'ceasefire', 'truce', 'front line', 'frontline', 'military operation',
-  'insurgency', 'militants', 'rebels', 'militia', 'armed group', 'combat',
+  'insurgency', 'militants', 'rebels', 'militia', 'armed group', 'combat zone', 'in combat',
   'artillery', 'occupied', 'occupation', 'siege', 'besieged', 'clashes',
   'gunmen', 'massacre', 'atrocities', 'war crimes', 'genocide', 'coup',
   'drone strike', 'drone attack', 'air raid', 'rocket attack', 'missile strike',
@@ -136,6 +136,75 @@ const PROTEST = /\bprotest|\bmarch(es|ing)?\b|\bdemonstrat|\brally\b|\brallies\b
 const UNREST_ONLY = new Set(['clashes', 'clash']);
 
 /**
+ * Hostility words used as metaphor. A trade war is not a war, and these
+ * phrases were colouring peaceful countries: "Germany wants to avoid China
+ * trade war" made Germany a conflict zone.
+ */
+const METAPHOR =
+  /\b(trade|tariff|price|bidding|turf|culture|chip|currency|class|cyber|information|propaganda|drug|streaming|format|flame|edit|bus|console)[- ]wars?\b|\bwar of words\b|\bwar on (drugs|poverty|terror|waste|cash|woke|christmas)\b|\bwar chest\b|\bprice war\b|\bwar paint\b|\bwar gaming\b|\btug of war\b/i;
+
+/**
+ * Historical reference, not current fighting. "The Bundestag has debated the
+ * genocide Germany carried out in Namibia a century ago" is not evidence that
+ * Namibia is at war.
+ */
+const HISTORICAL =
+  /\b(world war|ww[12]|wwii|wwi|cold war|civil war of|great war)\b|\b(years|decades|centur(y|ies)) ago\b|\banniversar/i;
+
+/**
+ * Warning, risk and hypothetical framing. "Iran's supreme leader warns US,
+ * Israel against war" reports a threat, not hostilities, and marked Israel as
+ * a conflict zone on the strength of a speech.
+ */
+const HYPOTHETICAL =
+  /\bwarns?\b|\bwarned\b|\bwarning\b|\b(risk|threat|fear|fears|prospect|brink|verge|spectre|specter) of\b|\bcould (lead to|trigger|spark|mean)\b|\bif war\b|\bprepares? for war\b|\bavoid (a )?war\b|\bagainst war\b|\bwar[- ]?game/i;
+
+/**
+ * Who the hostilities belong to, as named in the headline.
+ *
+ * A war named in a headline often belongs to somewhere else, and the country
+ * the headline leads with is a bystander: "Chinese firm agrees to build rail
+ * tunnels in Qatar amid Iran war" is not evidence about Qatar, and "Tunisians
+ * drawn into Russia's war in Ukraine" is not evidence about Tunisia.
+ *
+ * This returns the proper-noun spans bound to the hostility by a possessive
+ * ("Russia's war"), a preposition ("war in Ukraine") or attribution ("Iran
+ * war"). The caller resolves them to countries and requires that the country
+ * it is about is one of them. Capitalisation is the proper-noun signal, so
+ * this reads the original title, not a lowercased copy.
+ */
+/**
+ * Regions larger than a country. A war bound to one of these belongs to no
+ * single state: "Hong Kong poised for capital inflow amid unrest in France,
+ * Middle East war" is not evidence about Hong Kong.
+ *
+ * Kept separate from an unresolvable phrase, because those are usually a
+ * region INSIDE the country and the war is genuinely its own - "Ethiopia
+ * acquires Russian fighter jets amid war in Tigray" is evidence about
+ * Ethiopia, and treating every unresolvable phrase as disqualifying dropped
+ * it.
+ */
+export const SUPRANATIONAL =
+  /^(the )?(middle east|near east|far east|europe|africa|asia|north america|south america|latin america|central america|the americas|americas|eurasia|oceania|balkans|sahel|horn of africa|caucasus|south caucasus|gulf|persian gulf|arabian peninsula|levant|maghreb|west africa|east africa|central africa|southern africa|north africa|central asia|south asia|southeast asia|south east asia|east asia|western europe|eastern europe|pacific|indo[- ]pacific|mediterranean|red sea|black sea|baltics|scandinavia|west bank and gaza|global south|west|western world)$/i;
+
+export function hostilityOwnerPhrases(title: string): string[] {
+  const out: string[] = [];
+  const add = (m: RegExpMatchArray | null, g = 1) => {
+    const v = m?.[g]?.trim();
+    if (v && v.length > 2) out.push(v);
+  };
+  const PROPER = "[A-Z][\\w'\u2019-]*(?: [A-Z][\\w'\u2019-]*){0,2}";
+  for (const re of [
+    new RegExp(`(${PROPER})['\u2019]s (?:war|invasion|offensive|occupation)`, 'g'),
+    new RegExp(`(?:war|conflict|fighting|invasion|offensive|occupation) (?:in|with|against|on|of) (?:the )?(${PROPER})`, 'g'),
+    new RegExp(`(${PROPER}) (?:war|conflict)\\b`, 'g'),
+  ]) {
+    for (const m of title.matchAll(re)) add(m);
+  }
+  return out;
+}
+
+/**
  * Active-hostility terms found in a HEADLINE.
  *
  * Headline only, not the summary: a country genuinely at war appears in the
@@ -145,6 +214,7 @@ const UNREST_ONLY = new Set(['clashes', 'clash']);
  */
 export function activeHostilityTerms(title: string): string[] {
   if (DIGEST.test(title)) return [];
+  if (METAPHOR.test(title) || HISTORICAL.test(title) || HYPOTHETICAL.test(title)) return [];
 
   const text = ` ${title.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ')} `;
   const hits = ACTIVE_HOSTILITY_TERMS.filter(
